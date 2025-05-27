@@ -6,6 +6,9 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
+console.log("Backend is live! Updated at", new Date().toISOString());
+
+
 let moodEntries = [];
 
 app.post('/api/mood', (req, res) => {
@@ -22,4 +25,9 @@ app.get('/api/mood', (req, res) => {
 
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
+});
+
+
+app.get('/api/test', (req, res) => {
+  res.json({ msg: "This is a test endpoint" });
 });
