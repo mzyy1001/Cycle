@@ -1,15 +1,11 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "app/index.tsx",
-      "use": "@vercel/next"
-    }
-  ],
+  "builds": [],
+  "public": true,
   "env": {
     "EXPO_PUBLIC_API_BASE_URL": "https://cycle-nzen.onrender.com"
   },
-  "buildCommand": "npm install && npm run web",
+  "buildCommand": "npx expo export:web",
   "outputDirectory": "dist",
   "rootDirectory": "app/frontend"
 }
