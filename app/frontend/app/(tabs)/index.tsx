@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, TextInput, Button, FlatList, Text } from 'react-native';
-const API_URL = process.env.API_BASE_URL;
+const API_URL = process.env.EXPO_PUBLIC_API_BASE_URL;
 
 export default function IndexScreen() {
   const [mood, setMood] = useState('');
