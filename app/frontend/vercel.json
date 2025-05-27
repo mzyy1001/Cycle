@@ -5,7 +5,7 @@
   "env": {
     "EXPO_PUBLIC_API_BASE_URL": "https://cycle-nzen.onrender.com"
   },
-  "buildCommand": "npx expo export:web",
+  "buildCommand": "npx expo export --platform web",
   "outputDirectory": "dist",
   "rootDirectory": "app/frontend"
 }
