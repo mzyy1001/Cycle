@@ -1,0 +1,30 @@
+name: Deploy Backend
+
+on:
+  push:
+    paths:
+      - 'app/backend/**'
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: app/backend
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run server (for test or deploy)
+        run: echo "Run backend test or deploy step here"
