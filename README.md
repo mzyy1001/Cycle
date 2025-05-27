@@ -1,3 +1,82 @@
+
+# 🚀 Project Cycle – Technical Overview
+
+This project implements a full-stack mood tracking app with continuous deployment, cross-platform compatibility, and RESTful API support.
+
+---
+
+## 🔧 Tech Stack Summary
+
+### 🖥️ Frontend (Web + Mobile)
+
+* **Framework:** [React Native](https://reactnative.dev/)
+* **Platform:** [Expo](https://expo.dev/)
+* **Web Export:** `expo export --platform web`
+* **CI/CD Host:** [Vercel](https://vercel.com/)
+* **Deployment URL:** [https://cycle-theta.vercel.app](https://cycle-theta.vercel.app)
+
+#### Environment Variables
+
+* `EXPO_PUBLIC_API_BASE_URL=https://cycle-nzen.onrender.com`
+
+---
+
+### 🌐 Backend (REST API)
+
+* **Framework:** [Express.js](https://expressjs.com/)
+* **Language:** Node.js 18
+* **Hosting Platform:** [Render](https://render.com/)
+* **Deployment URL:** [https://cycle-nzen.onrender.com](https://cycle-nzen.onrender.com)
+
+#### API Endpoints
+
+* `GET /api/mood` – Returns an array of all mood entries
+* `POST /api/mood` – Accepts `{ mood: string, timestamp: ISOString }`
+
+---
+
+### 🔁 Continuous Integration
+
+#### GitHub Actions Workflows
+
+* `.github/workflows/frontend.yml` → Web CI Build
+* `.github/workflows/backend.yml` → Smoke Test + Build Check
+
+#### Additional
+
+* `vercel.json` → Controls Vercel web export and build output
+* `render.yaml` → Defines Render auto-deploy for backend from monorepo
+
+---
+
+### ✅ Test Tooling
+
+* `test_backend.sh` – Shell script to test API availability and correctness after deployment
+
+---
+
+## 📁 Project Structure
+
+```
+app/
+├── backend/            # Express API service
+├── frontend/           # Expo project for web and mobile
+│   ├── vercel.json     # Vercel deploy configuration
+├── test_backend.sh     # Smoke test after deployment
+.github/
+└── workflows/          # GitHub CI for frontend/backend
+```
+
+---
+
+## 🧪 Live Testing URLs
+
+* Frontend UI: [https://cycle-theta.vercel.app](https://cycle-theta.vercel.app)
+* API GET test: [`curl https://cycle-nzen.onrender.com/api/mood`](https://cycle-nzen.onrender.com/api/mood)
+
+
+
+
 # Cycle: A Mood-Responsive Productivity App
 
 ## 🧠 Project Overview
