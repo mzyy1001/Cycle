@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: cycle-backend
+    env: node
+    plan: free
+    branch: main
+    rootDir: app/backend
+    buildCommand: "npm install"
+    startCommand: "npm start"
+    healthCheckPath: "/api/mood"
+    autoDeploy: true

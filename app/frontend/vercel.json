@@ -1,0 +1,15 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "app/index.tsx",
+      "use": "@vercel/next"
+    }
+  ],
+  "env": {
+    "EXPO_PUBLIC_API_BASE_URL": "https://your-backend.onrender.com"
+  },
+  "buildCommand": "npm install && npm run web",
+  "outputDirectory": "dist",
+  "rootDirectory": "app/frontend"
+}
