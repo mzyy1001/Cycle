@@ -6,28 +6,13 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
-console.log("Backend is live! Updated at", new Date().toISOString());
+app.use('/api', require('./routes/users'));
+app.use('/api/tasks', require('./routes/tasks'));
 
-
-let moodEntries = [];
-
-app.post('/api/mood', (req, res) => {
-    console.log('Received mood entry:', req.body);
-    const { mood, timestamp } = req.body;
-    moodEntries.push({ mood, timestamp });
-    res.status(201).json({ message: 'Entry saved' });
-});
-
-app.get('/api/mood', (req, res) => {
-    console.log('Fetching mood entries');
-    res.json(moodEntries);
+app.get('/api/test', (req, res) => {
+  res.json({ msg: 'Backend is working' });
 });
 
 app.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
-});
-
-
-app.get('/api/test', (req, res) => {
-  res.json({ msg: "This is a test endpoint" });
+  console.log(`Server is running at http://localhost:${PORT}`);
 });
