@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, Button, FlatList } from 'react-native';
-import { router } from 'expo-router';
 
 type Task = {
   id: number;
@@ -45,7 +44,7 @@ export default function DashboardScreen() {
       />
       <Button title="Previous" disabled={page === 1} onPress={() => setPage(page - 1)} />
       <Button title="Next" disabled={page === totalPages} onPress={() => setPage(page + 1)} />
-      <Button title="Go to Register" onPress={() => router.push("/register")} />
+        
     </View>
   );
 
