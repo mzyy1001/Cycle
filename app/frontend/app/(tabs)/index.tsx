@@ -61,7 +61,7 @@ export default function IndexScreen() {
         onChangeText={setLength}
         keyboardType="numeric"
       />
-      <Button title="Submit Task + Mood" onPress={submitMood} />
+      <Button title="Submit small Task + Mood" onPress={submitMood} />
       <FlatList
         data={entries}
         keyExtractor={(item, index) => index.toString()}
