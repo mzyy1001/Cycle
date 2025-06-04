@@ -1,76 +1,120 @@
-import React, { useState, useEffect } from 'react';
-import { View, TextInput, Button, FlatList, Text } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Image, ScrollView } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const API_URL = process.env.EXPO_PUBLIC_API_BASE_URL;
-
-type Entry = {
-  mood: string;
-  task: string;
-  timestamp: string;
-  length: number;
-};
-
-export default function IndexScreen() {
-  const [mood, setMood] = useState('');
-  const [task, setTask] = useState('');
-  const [length, setLength] = useState('30');
-  const [entries, setEntries] = useState<Entry[]>([]);
-
-  const fetchEntries = async () => {
-    const res = await fetch(`${API_URL}/api/mood`);
-    const data = await res.json();
-    setEntries(data);
-  };
+export default function Index() {
+  const router = useRouter();
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
-    fetchEntries();
+    const checkLogin = async () => {
+      const token = await AsyncStorage.getItem('token');
+      if (token) {
+        setIsLoggedIn(true);
+      } else {
+        setIsLoggedIn(false);
+      }
+    };
+    checkLogin();
   }, []);
 
-  const submitMood = async () => {
-    await fetch(`${API_URL}/api/mood`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        mood,
-        task,
-        length: parseInt(length),
-        timestamp: new Date().toISOString()
-      })
-    });
-    setMood('');
-    setTask('');
-    setLength('30');
-    fetchEntries();
+  const handleLogout = async () => {
+    await AsyncStorage.removeItem('token');
+    setIsLoggedIn(false);
   };
 
   return (
-    <View style={{ padding: 20, marginTop: 50 }}>
-      <TextInput
-        placeholder="How are you feeling?"
-        value={mood}
-        onChangeText={setMood}
+    <ScrollView contentContainerStyle={styles.container}>
+      <Image
+        source={require('@/assets/images/mood.jpg')} 
+        style={styles.image}
+        resizeMode="contain"
       />
-      <TextInput
-        placeholder="What task are you doing?"
-        value={task}
-        onChangeText={setTask}
-      />
-      <TextInput
-        placeholder="How many minutes you need to use?"
-        value={length}
-        onChangeText={setLength}
-        keyboardType="numeric"
-      />
-      <Button title="Submit small Task + Mood" onPress={submitMood} />
-      <FlatList
-        data={entries}
-        keyExtractor={(item, index) => index.toString()}
-        renderItem={({ item }) => (
-          <Text>
-            {item.timestamp.slice(0, 19)} - {item.task} ({item.mood}) - {item.length}min
-          </Text>
-        )}
-      />
-    </View>
+      <Text style={styles.title}>Welcome to Cycle</Text>
+      <Text style={styles.subtitle}>Mood Management</Text>
+
+      {!isLoggedIn ? (
+        <>
+          <TouchableOpacity
+            style={styles.buttonPrimary}
+            onPress={() => router.push('/register')}
+          >
+            <Text style={styles.buttonText}>注册</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.buttonSecondary}
+            onPress={() => router.push('/login')}
+          >
+            <Text style={styles.buttonText}>登录</Text>
+          </TouchableOpacity>
+        </>
+      ) : (
+        <>
+          <TouchableOpacity
+            style={styles.buttonPrimary}
+            onPress={() => router.push('/dashboard')}
+          >
+            <Text style={styles.buttonText}>进入任务面板</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.buttonSecondary}
+            onPress={handleLogout}
+          >
+            <Text style={styles.buttonText}>登出</Text>
+          </TouchableOpacity>
+        </>
+      )}
+    </ScrollView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+    backgroundColor: '#fff',
+  },
+  image: {
+    width: '100%',
+    height: 220,
+    marginBottom: 24,
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#1e293b',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#64748b',
+    marginBottom: 24,
+    textAlign: 'center',
+  },
+  buttonPrimary: {
+    width: '100%',
+    backgroundColor: '#3b82f6',
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  buttonSecondary: {
+    width: '100%',
+    backgroundColor: '#1e40af',
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  buttonText: {
+    color: 'white',
+    fontWeight: '600',
+    textAlign: 'center',
+    fontSize: 16,
+  },
+});
