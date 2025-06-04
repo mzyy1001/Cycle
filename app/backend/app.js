@@ -3,6 +3,14 @@ const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+app.use((req, res, next) => {
+  console.log(`➡️  ${req.method} ${req.originalUrl}`);
+  if (req.method === 'POST' || req.method === 'PATCH') {
+    console.log('📦 Body:', req.body);
+  }
+  next();
+});
+
 app.use(cors());
 app.use(express.json());
 
