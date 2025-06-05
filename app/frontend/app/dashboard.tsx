@@ -29,11 +29,14 @@ export default function DashboardScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskMood, setNewTaskMood] = useState<string | null>(null);
+  const [newTaskDate, setNewTaskDate] = useState('');
+  const [newTaskTime, setNewTaskTime] = useState('');
+  const [newTaskLength, setNewTaskLength] = useState('');
 
   useEffect(() => {
   const checkAuth = async () => {
     const token = await AsyncStorage.getItem('authToken');
-    console.log('token:', token); 
+    console.log('token:', token);
     if (!token) {
       router.replace('/reg_login');
     }
@@ -62,21 +65,42 @@ export default function DashboardScreen() {
   }, []);
 
   const addTask = async () => {
-    if (!newTaskTitle || !newTaskMood) return alert('Please enter title and mood');
+    if (!newTaskTitle || !newTaskMood || !newTaskDate || !newTaskTime || !newTaskLength) {
+      return alert('Please fill all fields: title, mood, date, time, and length.');
+    }
     const token = await AsyncStorage.getItem('authToken');
-    console.log('token:', token); 
-    const timestamp = new Date().toISOString();
+    console.log('token:', token);
+
+    let timestamp;
+    try {
+      const localDateTime = new Date(`${newTaskDate}T${newTaskTime}:00`);
+      if (isNaN(localDateTime.getTime())) {
+        throw new Error('Invalid date or time format');
+      }
+      timestamp = localDateTime.toISOString();
+    } catch (error) {
+      console.error("Error parsing date/time:", error);
+      alert("Invalid date or time format. Please use YYYY-MM-DD for date and HH:MM for time.");
+      return;
+    }
+
+    const taskLength = parseInt(newTaskLength, 10);
+    if (isNaN(taskLength) || taskLength <= 0) {
+      alert('Please enter a valid positive number for task length (in minutes).');
+      return;
+    }
+
     const res = await fetch(`${process.env.EXPO_PUBLIC_API_BASE_URL}/api/tasks`, {
       method: 'POST',
-      headers: { 
+      headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}` 
+        'Authorization': `Bearer ${token}`
       },
       body: JSON.stringify({
         task: newTaskTitle,
         mood: newTaskMood,
-        timestamp,
-        length: 30,
+        timestamp: timestamp,
+        length: taskLength,
       }),
     });
     const data = await res.json();
@@ -91,19 +115,23 @@ export default function DashboardScreen() {
     setModalVisible(false);
     setNewTaskTitle('');
     setNewTaskMood(null);
+    // Reset new fields
+    setNewTaskDate('');
+    setNewTaskTime('');
+    setNewTaskLength('');
   };
 
   const filteredTasks = selectedMood ? tasks.filter(t => t.mood === selectedMood) : tasks;
 
-  
+
 
   const renderTaskItem = (item: Task) => {
     const moodObj = moodOptions.find(m => m.mood === item.mood);
     const startTime = new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    
+
     const handleDelete = async () => {
       const token = await AsyncStorage.getItem('authToken');
-      console.log('token:', token); 
+      console.log('token:', token);
       const res = await fetch(`${process.env.EXPO_PUBLIC_API_BASE_URL}/api/tasks/${item.id}`, {
         method: 'DELETE',
         headers: {
@@ -117,14 +145,14 @@ export default function DashboardScreen() {
         alert('Failed to delete task');
       }
     };
-    
+
     return (
       <View style={{
         backgroundColor: moodObj?.color || '#fff',
         padding: 10,
         marginVertical: 5,
         borderRadius: 10
-      }}>
+      }} key={item.id}>
         <Text style={{ fontWeight: 'bold' }}>{item.task}</Text>
         <Text>{moodObj?.icon} {item.mood} · {startTime} · {item.length} min</Text>
         <TouchableOpacity onPress={handleDelete} style={{ marginTop: 6 }}>
@@ -133,6 +161,23 @@ export default function DashboardScreen() {
       </View>
     );
   };
+
+  const handleOpenModal = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = (now.getMonth() + 1).toString().padStart(2, '0');
+    const day = now.getDate().toString().padStart(2, '0');
+    const hours = now.getHours().toString().padStart(2, '0');
+    const minutes = now.getMinutes().toString().padStart(2, '0');
+
+    setNewTaskDate(`${year}-${month}-${day}`);
+    setNewTaskTime(`${hours}:${minutes}`);
+    setNewTaskLength('30');
+    setNewTaskTitle('');
+    setNewTaskMood(null);
+    setModalVisible(true);
+  };
+
 
   return (
     <>
@@ -151,7 +196,7 @@ export default function DashboardScreen() {
               style={{ borderWidth: 1, marginVertical: 10, padding: 8, borderRadius: 5 }}
             />
             <Text style={{ marginBottom: 5 }}>Best Suited Mood</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 10 }}>
               {moodOptions.map(({ mood, color, icon }) => (
                 <TouchableOpacity
                   key={mood}
@@ -162,23 +207,55 @@ export default function DashboardScreen() {
                     margin: 5,
                     borderRadius: 10,
                     borderWidth: newTaskMood === mood ? 2 : 0,
+                    borderColor: newTaskMood === mood ? '#4f46e5' : 'transparent', // Highlight selected mood
                   }}
                 >
                   <Text>{icon} {mood}</Text>
                 </TouchableOpacity>
               ))}
             </View>
-            <Button title="Add Task" onPress={addTask} />
-            <Button title="Cancel" onPress={() => setModalVisible(false)} color="gray" />
+            <TextInput
+              placeholder="Date (YYYY-MM-DD)"
+              value={newTaskDate}
+              onChangeText={setNewTaskDate}
+              style={{ borderWidth: 1, marginVertical: 10, padding: 8, borderRadius: 5 }}
+            />
+            <TextInput
+              placeholder="Time (HH:MM, 24-hour)"
+              value={newTaskTime}
+              onChangeText={setNewTaskTime}
+              style={{ borderWidth: 1, marginVertical: 10, padding: 8, borderRadius: 5 }}
+            />
+            <TextInput
+              placeholder="Length (minutes)"
+              value={newTaskLength}
+              onChangeText={setNewTaskLength}
+              keyboardType="numeric"
+              style={{ borderWidth: 1, marginVertical: 10, padding: 8, borderRadius: 5 }}
+            />
+            <View style={{ marginTop: 10 }}>
+              <Button title="Add Task" onPress={addTask} />
+            </View>
+            <View style={{ marginTop: 8 }}>
+              <Button title="Cancel" onPress={() => {
+                setModalVisible(false);
+                // Reset all form fields on cancel
+                setNewTaskTitle('');
+                setNewTaskMood(null);
+                setNewTaskDate('');
+                setNewTaskTime('');
+                setNewTaskLength('');
+              }} color="gray" />
+            </View>
           </View>
         </View>
       </Modal>
-      
+
       <ScrollView contentContainerStyle={{ padding: 20 }}>
 
         <Text style={{ fontSize: 24, fontWeight: 'bold' }}>Your Student Timetable</Text>
         <Text style={{ marginVertical: 10 }}>How are you feeling now?</Text>
-        
+
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 20 }}>
           {moodOptions.map(({ mood, color, icon }) => (
             <TouchableOpacity
@@ -190,7 +267,9 @@ export default function DashboardScreen() {
                 borderRadius: 10,
                 margin: 5,
                 minWidth: '30%',
-                alignItems: 'center'
+                alignItems: 'center',
+                borderWidth: selectedMood === mood ? 2 : 0,
+                borderColor: selectedMood === mood ? '#4f46e5' : 'transparent',
               }}
             >
               <Text>{icon}</Text>
@@ -199,7 +278,7 @@ export default function DashboardScreen() {
           ))}
         </View>
         <TouchableOpacity
-            onPress={() => setModalVisible(true)}
+            onPress={handleOpenModal} // Use handleOpenModal to prefill and show
             style={{
               backgroundColor: '#4f46e5',
               padding: 12,
@@ -213,15 +292,21 @@ export default function DashboardScreen() {
 
         {/* Task List */}
         <Text style={{ fontSize: 18, fontWeight: '600', marginBottom: 10 }}>Today's Schedule</Text>
-        {(filteredTasks ?? []).sort((a, b) =>
+        {(filteredTasks ?? []).length > 0 ? (
+          (filteredTasks ?? []).sort((a, b) =>
             new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-          ).map(renderTaskItem)}
+          ).map(renderTaskItem)
+        ) : (
+          <Text style={{ fontStyle: 'italic', color: 'gray', textAlign: 'center', marginTop: 20 }}>
+            No tasks scheduled{selectedMood ? ` for ${selectedMood} mood` : ''}. Add some!
+          </Text>
+        )}
       </ScrollView>
       <TouchableOpacity onPress={async () => {
         await AsyncStorage.removeItem('authToken');
         router.replace('/reg_login');
-      }}>
-        <Text>Logout</Text>
+      }} style={{ padding: 10, alignItems: 'center', backgroundColor: '#f3f4f6', borderTopWidth: 1, borderColor: '#e5e7eb' }}>
+        <Text style={{ color: '#ef4444', fontWeight: 'bold' }}>Logout</Text>
       </TouchableOpacity>
     </>
   );
