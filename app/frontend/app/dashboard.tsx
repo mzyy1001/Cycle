@@ -34,6 +34,7 @@ export default function DashboardScreen() {
   useEffect(() => {
   const checkAuth = async () => {
     const token = await AsyncStorage.getItem('authToken');
+    console.log('token:', token); 
     if (!token) {
       router.replace('/reg_login');
     }
@@ -53,6 +54,7 @@ export default function DashboardScreen() {
   const addTask = async () => {
     if (!newTaskTitle || !newTaskMood) return alert('Please enter title and mood');
     const token = await AsyncStorage.getItem('authToken');
+    console.log('token:', token); 
     const timestamp = new Date().toISOString();
     const res = await fetch(`${process.env.EXPO_PUBLIC_API_BASE_URL}/api/tasks`, {
       method: 'POST',
@@ -69,10 +71,11 @@ export default function DashboardScreen() {
     });
     const data = await res.json();
     if (!res.ok || !data.task) {
-      console.error('Create failed:', data); // ✅ 打印完整响应内容
+      console.error('Create failed:', data);
       alert(data.error || 'Failed to create task');
       return;
     }
+    if (!data.task) return alert('Server did not return task');
     setTasks(prev => [...prev, data.task]);
     setModalVisible(false);
     setNewTaskTitle('');
@@ -89,6 +92,7 @@ export default function DashboardScreen() {
     
     const handleDelete = async () => {
       const token = await AsyncStorage.getItem('authToken');
+      console.log('token:', token); 
       const res = await fetch(`${process.env.EXPO_PUBLIC_API_BASE_URL}/api/tasks/${item.id}`, {
         method: 'DELETE',
         headers: {
