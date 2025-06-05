@@ -32,14 +32,14 @@ export default function DashboardScreen() {
   const [newTaskMood, setNewTaskMood] = useState<string | null>(null);
 
   useEffect(() => {
-    const checkAuth = async () => {
-      const token = await AsyncStorage.getItem('authToken');
-      if (!token) {
-        router.replace('/reg_login');
-      }
-    };
-    checkAuth();
-  }, []);
+  const checkAuth = async () => {
+    const token = await AsyncStorage.getItem('authToken');
+    if (!token) {
+      router.replace('/reg_login');
+    }
+  };
+  checkAuth();
+}, []);
 
   useEffect(() => {
     const fetchTasks = async () => {
@@ -52,10 +52,14 @@ export default function DashboardScreen() {
 
   const addTask = async () => {
     if (!newTaskTitle || !newTaskMood) return alert('Please enter title and mood');
+    const token = await AsyncStorage.getItem('authToken');
     const timestamp = new Date().toISOString();
     const res = await fetch(`${process.env.EXPO_PUBLIC_API_BASE_URL}/api/tasks`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}` 
+      },
       body: JSON.stringify({
         task: newTaskTitle,
         mood: newTaskMood,
@@ -64,6 +68,11 @@ export default function DashboardScreen() {
       }),
     });
     const data = await res.json();
+    if (!res.ok || !data.task) {
+      console.error('Create failed:', data); // ✅ 打印完整响应内容
+      alert(data.error || 'Failed to create task');
+      return;
+    }
     setTasks(prev => [...prev, data.task]);
     setModalVisible(false);
     setNewTaskTitle('');
@@ -72,9 +81,28 @@ export default function DashboardScreen() {
 
   const filteredTasks = selectedMood ? tasks.filter(t => t.mood === selectedMood) : tasks;
 
+  
+
   const renderTaskItem = (item: Task) => {
     const moodObj = moodOptions.find(m => m.mood === item.mood);
     const startTime = new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    
+    const handleDelete = async () => {
+      const token = await AsyncStorage.getItem('authToken');
+      const res = await fetch(`${process.env.EXPO_PUBLIC_API_BASE_URL}/api/tasks/${item.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (res.ok) {
+        setTasks(prev => prev.filter(t => t.id !== item.id));
+      } else {
+        alert('Failed to delete task');
+      }
+    };
+    
     return (
       <View style={{
         backgroundColor: moodObj?.color || '#fff',
@@ -84,6 +112,9 @@ export default function DashboardScreen() {
       }}>
         <Text style={{ fontWeight: 'bold' }}>{item.task}</Text>
         <Text>{moodObj?.icon} {item.mood} · {startTime} · {item.length} min</Text>
+        <TouchableOpacity onPress={handleDelete} style={{ marginTop: 6 }}>
+        <Text style={{ color: 'red' }}>Delete</Text>
+        </TouchableOpacity>
       </View>
     );
   };
@@ -167,9 +198,9 @@ export default function DashboardScreen() {
 
         {/* Task List */}
         <Text style={{ fontSize: 18, fontWeight: '600', marginBottom: 10 }}>Today's Schedule</Text>
-        {filteredTasks
-          .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
-          .map(renderTaskItem)}
+        {(filteredTasks ?? []).sort((a, b) =>
+            new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+          ).map(renderTaskItem)}
       </ScrollView>
       <TouchableOpacity onPress={async () => {
         await AsyncStorage.removeItem('authToken');

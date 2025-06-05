@@ -1,18 +1,23 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
+const authenticateToken = require('../middleware/auth');
+
+router.use(authenticateToken);
 
 // POST /api/tasks
 router.post('/', (req, res) => {
+  const userId = req.user.id;
   const { mood, task, timestamp, length = 30 } = req.body;
   if (!mood || !task || !timestamp)
     return res.status(400).json({ error: 'Missing fields' });
 
   const stmt = db.prepare(`
-    INSERT INTO tasks (task, mood, timestamp, length, isScheduled)
-    VALUES (?, ?, ?, ?, 0)
+    INSERT INTO tasks (userId, task, mood, timestamp, length, isScheduled)
+    VALUES (?, ?, ?, ?, ?, 0)
   `);
-  const info = stmt.run(task, mood, timestamp, length);
+  const info = stmt.run(userId, task, mood, timestamp, length);
+
 
   const newTask = {
     id: info.lastInsertRowid,
@@ -27,6 +32,7 @@ router.post('/', (req, res) => {
 
 // GET /api/tasks
 router.get('/', (req, res) => {
+  const userId = req.user.id;
   const page = parseInt(req.query.page) || 1;
   const pageSize = 10;
   const offset = (page - 1) * pageSize;
@@ -34,8 +40,8 @@ router.get('/', (req, res) => {
   const search = req.query.search?.toLowerCase();
   const isScheduled = req.query.isScheduled;
 
-  let query = 'SELECT * FROM tasks WHERE 1=1';
-  const params = [];
+  let query = 'SELECT * FROM tasks WHERE userId = ?';
+  const params = [userId];
 
   if (mood) {
     query += ' AND mood = ?';
@@ -91,9 +97,12 @@ router.patch('/:id/schedule', (req, res) => {
 // DELETE /api/tasks/:id
 router.delete('/:id', (req, res) => {
   const id = parseInt(req.params.id);
+
+  const task = db.prepare('SELECT * FROM tasks WHERE id = ? AND userId = ?').get(id, req.user.id);
+  if (!task) return res.status(404).json({ error: 'Task not found or unauthorized' });
+
   const stmt = db.prepare('DELETE FROM tasks WHERE id = ?');
-  const info = stmt.run(id);
-  if (info.changes === 0) return res.status(404).json({ error: 'Task not found' });
+  stmt.run(id);
 
   res.json({ message: 'Task deleted' });
 });

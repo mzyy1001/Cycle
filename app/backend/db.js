@@ -4,6 +4,7 @@ const db = new Database('tasks.db');
 db.exec(`
   CREATE TABLE IF NOT EXISTS tasks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    userId INTEGER NOT NULL,
     task TEXT NOT NULL,
     mood TEXT NOT NULL,
     timestamp TEXT NOT NULL,
