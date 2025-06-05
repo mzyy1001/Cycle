@@ -44,8 +44,19 @@ export default function DashboardScreen() {
 
   useEffect(() => {
     const fetchTasks = async () => {
-      const res = await fetch(`${process.env.EXPO_PUBLIC_API_BASE_URL}/api/tasks`);
+      const token = await AsyncStorage.getItem('authToken');
+      const res = await fetch(`${process.env.EXPO_PUBLIC_API_BASE_URL}/api/tasks`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
       const data = await res.json();
+
+      if (!res.ok || !data.tasks) {
+        console.error('Fetching tasks failed:', data);
+        return;
+      }
+
       setTasks(data.tasks);
     };
     fetchTasks();
@@ -75,7 +86,8 @@ export default function DashboardScreen() {
       alert(data.error || 'Failed to create task');
       return;
     }
-    if (!data.task) return alert('Server did not return task');
+    console.log('server returned:', data);
+
     setTasks(prev => [...prev, data.task]);
     setModalVisible(false);
     setNewTaskTitle('');
