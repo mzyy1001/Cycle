@@ -1,0 +1,25 @@
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.env # If you use .env files for environment variables
+
+# build/
+# dist/
+# out/
+
+logs/
+*.log
+
+.DS_Store
+Thumbs.db
+
+.vscode/
+.idea/
+*.swp
+*~
+
+coverage/
+lcov-report/
+
+*.tmp
