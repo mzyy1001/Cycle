@@ -23,3 +23,5 @@ coverage/
 lcov-report/
 
 *.tmp
+
+*.db

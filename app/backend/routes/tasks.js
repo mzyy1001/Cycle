@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../db');
+const db = require('../db').tasks;
 const authenticateToken = require('../middleware/auth');
 
 router.use(authenticateToken);
@@ -13,8 +13,8 @@ router.post('/', (req, res) => {
     return res.status(400).json({ error: 'Missing fields' });
 
   const stmt = db.prepare(`
-    INSERT INTO tasks (userId, task, mood, timestamp, length, isScheduled)
-    VALUES (?, ?, ?, ?, ?, 0)
+    INSERT INTO tasks (user_id, task, mood, timestamp, length)
+    VALUES (?, ?, ?, ?, ?)
   `);
   const info = stmt.run(userId, task, mood, timestamp, length);
 
@@ -24,8 +24,7 @@ router.post('/', (req, res) => {
     task,
     mood,
     timestamp,
-    length,
-    isScheduled: false
+    length
   };
   res.status(201).json({ message: 'Task created', task: newTask });
 });
@@ -38,19 +37,13 @@ router.get('/', (req, res) => {
   const offset = (page - 1) * pageSize;
   const mood = req.query.mood;
   const search = req.query.search?.toLowerCase();
-  const isScheduled = req.query.isScheduled;
 
-  let query = 'SELECT * FROM tasks WHERE userId = ?';
+  let query = 'SELECT * FROM tasks WHERE user_id = ?';
   const params = [userId];
 
   if (mood) {
     query += ' AND mood = ?';
     params.push(mood);
-  }
-
-  if (isScheduled === 'true' || isScheduled === 'false') {
-    query += ' AND isScheduled = ?';
-    params.push(isScheduled === 'true' ? 1 : 0);
   }
 
   if (search) {
@@ -73,32 +66,21 @@ router.patch('/:id', (req, res) => {
   const old = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
   if (!old) return res.status(404).json({ error: 'Task not found' });
 
-  const { mood = old.mood, task: taskName = old.task, timestamp = old.timestamp, length = old.length, isScheduled = old.isScheduled } = req.body;
+  const { mood = old.mood, task: taskName = old.task, timestamp = old.timestamp, length = old.length } = req.body;
 
   db.prepare(`
-    UPDATE tasks SET mood = ?, task = ?, timestamp = ?, length = ?, isScheduled = ?
+    UPDATE tasks SET mood = ?, task = ?, timestamp = ?, length = ?
     WHERE id = ?
-  `).run(mood, taskName, timestamp, length, isScheduled ? 1 : 0, id);
+  `).run(mood, taskName, timestamp, length, id);
 
   res.json({ message: 'Task updated', task: { id, mood, task: taskName, timestamp, length, isScheduled } });
-});
-
-// PATCH /api/tasks/:id/schedule
-router.patch('/:id/schedule', (req, res) => {
-  const id = parseInt(req.params.id);
-  const stmt = db.prepare('UPDATE tasks SET isScheduled = 1 WHERE id = ?');
-  const info = stmt.run(id);
-  if (info.changes === 0) return res.status(404).json({ error: 'Task not found' });
-
-  const updated = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
-  res.json({ message: 'Task scheduled', task: updated });
 });
 
 // DELETE /api/tasks/:id
 router.delete('/:id', (req, res) => {
   const id = parseInt(req.params.id);
 
-  const task = db.prepare('SELECT * FROM tasks WHERE id = ? AND userId = ?').get(id, req.user.id);
+  const task = db.prepare('SELECT * FROM tasks WHERE id = ? AND user_id = ?').get(id, req.user.id);
   if (!task) return res.status(404).json({ error: 'Task not found or unauthorized' });
 
   const stmt = db.prepare('DELETE FROM tasks WHERE id = ?');

@@ -21,7 +21,6 @@ type Task = {
   mood: string;
   timestamp: string;
   length: number;
-  isScheduled: boolean;
 };
 
 export default function DashboardScreen() {

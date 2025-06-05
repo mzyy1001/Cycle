@@ -2,58 +2,54 @@ const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
-const sqlite3 = require('sqlite3').verbose();
 require('dotenv').config();
-const JWT_SECRET = process.env.JWT_SECRET
-// Use your own secret in production
+const JWT_SECRET = process.env.JWT_SECRET;
 
-
-
-// Init SQLite DB
-const db = new sqlite3.Database('./users.db');
-
-// Create users table if not exists
-db.run(`CREATE TABLE IF NOT EXISTS users (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  username TEXT UNIQUE,
-  password TEXT
-)`);
+const db = require("../db").users;
 
 // REGISTER
 router.post('/register', async (req, res) => {
   const { username, password } = req.body;
-  if (!username || !password)
+  if (!username || !password) {
     return res.status(400).json({ error: 'Username and password required' });
+  }
 
-  const hashedPassword = await bcrypt.hash(password, 10);
+  try {
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-  db.run(
-    `INSERT INTO users (username, password) VALUES (?, ?)`,
-    [username, hashedPassword],
-    function (err) {
-      if (err) {
-        if (err.code === 'SQLITE_CONSTRAINT') {
-          return res.status(409).json({ error: 'User already exists' });
-        }
-        return res.status(500).json({ error: 'Database error' });
-      }
-      res.status(201).json({ message: 'User registered' });
+    const stmt = db.prepare(`INSERT INTO users (username, password) VALUES (?, ?)`);
+    const info = stmt.run(username, hashedPassword);
+
+    res.status(201).json({ message: 'User registered' });
+
+  } catch (err) {
+    if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      return res.status(409).json({ error: 'User already exists' });
     }
-  );
+    console.error("Registration error:", err);
+    return res.status(500).json({ error: 'Database error during registration' });
+  }
 });
 
 // LOGIN
-router.post('/login', (req, res) => {
+router.post('/login', async (req, res) => {
   const { username, password } = req.body;
-  if (!username || !password)
+  if (!username || !password) {
     return res.status(400).json({ error: 'Username and password required' });
+  }
 
-  db.get(`SELECT * FROM users WHERE username = ?`, [username], async (err, user) => {
-    if (err) return res.status(500).json({ error: 'Database error' });
-    if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+  try {
+    const stmt = db.prepare(`SELECT * FROM users WHERE username = ?`);
+    const user = stmt.get(username);
+
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
 
     const match = await bcrypt.compare(password, user.password);
-    if (!match) return res.status(401).json({ error: 'Invalid credentials' });
+    if (!match) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
 
     const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '1h' });
     res.json({
@@ -61,7 +57,11 @@ router.post('/login', (req, res) => {
       token,
       user: { id: user.id, username: user.username }
     });
-  });
+
+  } catch (err) {
+    console.error("Login error:", err); 
+    return res.status(500).json({ error: 'Database error during login' });
+  }
 });
 
 module.exports = router;

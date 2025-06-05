@@ -1,16 +1,23 @@
 const Database = require('better-sqlite3');
-const db = new Database('tasks.db');
+const tasksDB = new Database('tasks.db');
 
-db.exec(`
+tasksDB.exec(`
   CREATE TABLE IF NOT EXISTS tasks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    userId INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
     task TEXT NOT NULL,
     mood TEXT NOT NULL,
     timestamp TEXT NOT NULL,
-    length INTEGER NOT NULL DEFAULT 30,
-    isScheduled INTEGER NOT NULL DEFAULT 0
+    length INTEGER NOT NULL DEFAULT 30
   )
 `);
 
-module.exports = db;
+const usersDB = new Database('users.db');
+
+usersDB.exec(`CREATE TABLE IF NOT EXISTS users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  username TEXT UNIQUE,
+  password TEXT
+)`);
+
+module.exports = { tasks: tasksDB, users: usersDB };
