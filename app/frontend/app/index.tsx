@@ -1,4 +1,4 @@
-import { View, Text, TouchableOpacity, StyleSheet, Image, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Image, ScrollView, Modal } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -7,6 +7,7 @@ export default function Index() {
   const router = useRouter();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
+  const [showTutorial, setShowTutorial] = useState(false);
 
   useEffect(() => {
     const checkLogin = async () => {
@@ -28,6 +29,17 @@ export default function Index() {
       }
     };
     checkLogin();
+  }, []);
+
+  useEffect(() => {
+    const checkFirstTime = async () => {
+      const seen = await AsyncStorage.getItem('hasSeenTutorial');
+      if (!seen) {
+        setShowTutorial(true);
+        await AsyncStorage.setItem('hasSeenTutorial', 'true');
+      }
+    };
+    checkFirstTime();
   }, []);
 
   const handleLogout = async () => {
@@ -72,11 +84,57 @@ export default function Index() {
           </>
         )
       )}
+      {/* Tutorial Modal */}
+      <Modal visible={showTutorial} transparent={true} animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Welcome to Cycle!</Text>
+            <Text style={styles.modalText}>
+              Cycle helps you manage your tasks based on how you feel.
+              Tap one or more moods, add your tasks, and let us build a schedule that works for your mental health.
+            </Text>
+            <Text style={styles.modalText}>
+              You can enter your mood multiple times per day and update your schedule anytime.
+            </Text>
+            <TouchableOpacity
+              style={styles.buttonPrimary}
+              onPress={() => setShowTutorial(false)}
+            >
+              <Text style={styles.buttonText}>Got it!</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    padding: 25,
+    borderRadius: 10,
+    width: '100%',
+    maxWidth: 400,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 15,
+    textAlign: 'center',
+  },
+  modalText: {
+    fontSize: 16,
+    marginBottom: 10,
+    lineHeight: 22,
+  },
   container: {
     flexGrow: 1,
     justifyContent: 'center',
