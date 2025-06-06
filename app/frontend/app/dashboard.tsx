@@ -157,7 +157,25 @@ export default function DashboardScreen() {
         borderRadius: 10
       }} key={item.id}>
         <Text style={{ fontWeight: 'bold' }}>{item.task}</Text>
-        <Text>{moodObj?.icon} {item.mood} · {startTime} · {item.length} min</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 4 }}>
+          {item.mood.map((m, i) => {
+            const mo = moodOptions.find(opt => opt.mood === m);
+            return (
+              <View key={i} style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                backgroundColor: mo?.color || '#eee',
+                paddingHorizontal: 8,
+                paddingVertical: 4,
+                borderRadius: 12,
+                marginRight: 5,
+                marginBottom: 5
+              }}>
+                <Text>{mo?.icon} {m}</Text>
+              </View>
+            );
+          })}
+        </View>
         <TouchableOpacity onPress={handleDelete} style={{ marginTop: 6 }}>
         <Text style={{ color: 'red' }}>Delete</Text>
         </TouchableOpacity>
