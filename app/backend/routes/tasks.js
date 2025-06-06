@@ -16,7 +16,7 @@ router.post('/', (req, res) => {
     INSERT INTO tasks (user_id, task, mood, timestamp, length)
     VALUES (?, ?, ?, ?, ?)
   `);
-  const info = stmt.run(userId, task, mood, timestamp, length);
+  const info = stmt.run(userId, task, JSON.stringify(mood), timestamp, length);
 
 
   const newTask = {
@@ -35,15 +35,15 @@ router.get('/', (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const pageSize = 10;
   const offset = (page - 1) * pageSize;
-  const mood = req.query.mood;
+  const mood = JSON.parse(req.query.mood);
   const search = req.query.search?.toLowerCase();
 
   let query = 'SELECT * FROM tasks WHERE user_id = ?';
   const params = [userId];
 
   if (mood) {
-    query += ' AND mood = ?';
-    params.push(mood);
+    query += ' AND mood LIKE ?';
+    params.push(`%${mood}%`);
   }
 
   if (search) {
@@ -66,7 +66,17 @@ router.patch('/:id', (req, res) => {
   const old = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
   if (!old) return res.status(404).json({ error: 'Task not found' });
 
-  const { mood = old.mood, task: taskName = old.task, timestamp = old.timestamp, length = old.length } = req.body;
+  const {
+    mood = JSON.parse(old.mood),
+    task: taskName = old.task,
+    timestamp = old.timestamp,
+    length = old.length,
+    isScheduled = old.isScheduled
+  } = req.body;
+
+  if (!Array.isArray(mood)) {
+    return res.status(400).json({ error: 'Mood must be an array of strings' });
+  }
 
   db.prepare(`
     UPDATE tasks SET mood = ?, task = ?, timestamp = ?, length = ?

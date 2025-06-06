@@ -18,7 +18,7 @@ const moodOptions = [
 type Task = {
   id: number;
   task: string;
-  mood: string;
+  mood: string[];
   timestamp: string;
   length: number;
 };
@@ -28,10 +28,10 @@ export default function DashboardScreen() {
   const [selectedMood, setSelectedMood] = useState<string | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState('');
-  const [newTaskMood, setNewTaskMood] = useState<string | null>(null);
   const [newTaskDate, setNewTaskDate] = useState('');
   const [newTaskTime, setNewTaskTime] = useState('');
   const [newTaskLength, setNewTaskLength] = useState('');
+  const [newTaskMood, setNewTaskMood] = useState<string[]>([]);
 
   useEffect(() => {
   const checkAuth = async () => {
@@ -114,19 +114,22 @@ export default function DashboardScreen() {
     setTasks(prev => [...prev, data.task]);
     setModalVisible(false);
     setNewTaskTitle('');
-    setNewTaskMood(null);
     // Reset new fields
     setNewTaskDate('');
     setNewTaskTime('');
     setNewTaskLength('');
+    setNewTaskMood([]);
   };
 
-  const filteredTasks = selectedMood ? tasks.filter(t => t.mood === selectedMood) : tasks;
+  const filteredTasks = selectedMood
+  ? tasks.filter(t => t.mood.includes(selectedMood))
+  : tasks;
 
 
 
   const renderTaskItem = (item: Task) => {
-    const moodObj = moodOptions.find(m => m.mood === item.mood);
+    const firstMood = item.mood[0]; 
+    const moodObj = moodOptions.find(m => m.mood === firstMood);
     const startTime = new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
     const handleDelete = async () => {
@@ -174,7 +177,7 @@ export default function DashboardScreen() {
     setNewTaskTime(`${hours}:${minutes}`);
     setNewTaskLength('30');
     setNewTaskTitle('');
-    setNewTaskMood(null);
+    setNewTaskMood([]);
     setModalVisible(true);
   };
 
@@ -200,14 +203,20 @@ export default function DashboardScreen() {
               {moodOptions.map(({ mood, color, icon }) => (
                 <TouchableOpacity
                   key={mood}
-                  onPress={() => setNewTaskMood(mood)}
+                  onPress={() => {
+                    if (newTaskMood.includes(mood)) {
+                      setNewTaskMood(prev => prev.filter(m => m !== mood));
+                    } else {
+                      setNewTaskMood(prev => [...prev, mood]);
+                    }
+                  }}
                   style={{
                     backgroundColor: color,
                     padding: 10,
                     margin: 5,
                     borderRadius: 10,
-                    borderWidth: newTaskMood === mood ? 2 : 0,
-                    borderColor: newTaskMood === mood ? '#4f46e5' : 'transparent', // Highlight selected mood
+                    borderWidth: newTaskMood.includes(mood) ? 2 : 0,
+                    borderColor: newTaskMood.includes(mood) ? '#4f46e5' : 'transparent', // Highlight selected mood
                   }}
                 >
                   <Text>{icon} {mood}</Text>
@@ -241,7 +250,7 @@ export default function DashboardScreen() {
                 setModalVisible(false);
                 // Reset all form fields on cancel
                 setNewTaskTitle('');
-                setNewTaskMood(null);
+                setNewTaskMood([]);
                 setNewTaskDate('');
                 setNewTaskTime('');
                 setNewTaskLength('');
