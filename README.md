@@ -26,7 +26,7 @@ This project implements a full-stack mood tracking app with continuous deploymen
 * **Framework:** [Express.js](https://expressjs.com/)
 * **Language:** Node.js 18
 * **Hosting Platform:** [Render](https://render.com/)
-* **Deployment URL:** [https://cycle-nzen.onrender.com](https://cycle-nzen.onrender.com)
+* **Deployment URL:** [https://cycle-1-4g2h.onrender.com](https://cycle-1-4g2h.onrender.com)
 
 #### API Endpoints
 
@@ -68,11 +68,6 @@ app/
 ```
 
 ---
-
-## 🧪 Live Testing URLs
-
-* Frontend UI: [https://cycle-theta.vercel.app](https://cycle-theta.vercel.app)
-* API GET test: [`curl https://cycle-nzen.onrender.com/api/mood`](https://cycle-nzen.onrender.com/api/mood)
 
 
 
