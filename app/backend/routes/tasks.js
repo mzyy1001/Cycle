@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db').tasks;
 const authenticateToken = require('../middleware/auth');
+require('dotenv').config();
 
 router.use(authenticateToken);
 
@@ -35,15 +36,26 @@ router.get('/', (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const pageSize = 10;
   const offset = (page - 1) * pageSize;
-  const mood = JSON.parse(req.query.mood);
+  let mood = null;
+  if (req.query.mood) {
+    try {
+      mood = JSON.parse(req.query.mood);
+      if (!Array.isArray(mood)) throw new Error();
+    } catch (e) {
+      return res.status(400).json({ error: 'Invalid mood format. Must be a JSON array.' });
+    }
+  }
   const search = req.query.search?.toLowerCase();
 
   let query = 'SELECT * FROM tasks WHERE user_id = ?';
   const params = [userId];
 
-  if (mood) {
-    query += ' AND mood LIKE ?';
-    params.push(`%${mood}%`);
+  if (mood && mood.length > 0) {
+    const moodConditions = mood.map(() => 'mood LIKE ?').join(' OR ');
+    query += ` AND (${moodConditions})`;
+    for (const m of mood) {
+      params.push(`%${m}%`);
+    }
   }
 
   if (search) {
@@ -53,10 +65,67 @@ router.get('/', (req, res) => {
 
   const total = db.prepare(`SELECT COUNT(*) AS count FROM (${query})`).get(...params).count;
   const tasks = db.prepare(`${query} ORDER BY timestamp ASC LIMIT ? OFFSET ?`).all(...params, pageSize, offset);
-
+  for (const task of tasks) {
+    try {
+      task.mood = JSON.parse(task.mood);
+    } catch {
+      task.mood = [];
+    }
+  }
   res.json({
     tasks,
     totalPages: Math.ceil(total / pageSize)
+  });
+});
+
+const { spawn } = require('child_process');
+
+router.post('/reschedule', async (req, res) => {
+  const userId = req.user.id;
+
+  const tasks = db.prepare(`
+    SELECT * FROM tasks
+    WHERE user_id = ? AND DATE(timestamp) = DATE('now')
+    ORDER BY timestamp ASC
+  `).all(userId);
+
+  if (!tasks.length) {
+    return res.status(404).json({ error: 'No tasks found for today' });
+  }
+
+  const python = spawn('python3', ['reschedule.py'], {
+    env: { ...process.env }
+  });
+
+  let result = '';
+  let error = '';
+
+  python.stdout.on('data', (data) => result += data.toString());
+  python.stderr.on('data', (data) => error += data.toString());
+
+  python.stdin.write(JSON.stringify(tasks));
+  python.stdin.end();
+
+  python.on('close', (code) => {
+    if (code !== 0 || error) {
+      return res.status(500).json({ error: error || 'Rescheduling failed' });
+    }
+
+    try {
+      const newTasks = JSON.parse(result);
+
+      const stmt = db.prepare(`UPDATE tasks SET timestamp = ? WHERE id = ?`);
+      const updateMany = db.transaction((tasks) => {
+        for (const t of tasks) {
+          stmt.run(t.timestamp, t.id);
+        }
+      });
+      updateMany(newTasks);
+
+      res.json({ message: 'Tasks rescheduled', tasks: newTasks });
+    } catch (e) {
+      res.status(500).json({ error: 'Failed to parse rescheduled tasks' });
+    }
   });
 });
 

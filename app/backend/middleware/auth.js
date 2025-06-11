@@ -10,7 +10,7 @@ function authenticateToken(req, res, next) {
 
   jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) return res.status(403).json({ error: 'Invalid token' });
-    console.log('✔️ Token decoded user:', user);
+    // console.log('✔️ Token decoded user:', user);
     req.user = user;
     next();
   });

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, ScrollView } from 'react-native';
-import { Modal, TextInput, Button } from 'react-native';
+import { Modal, TextInput, Button, ActivityIndicator  } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 
@@ -32,6 +32,7 @@ export default function DashboardScreen() {
   const [newTaskTime, setNewTaskTime] = useState('');
   const [newTaskLength, setNewTaskLength] = useState('');
   const [newTaskMood, setNewTaskMood] = useState<string[]>([]);
+  const [rescheduling, setRescheduling] = useState(false);
 
   useEffect(() => {
   const checkAuth = async () => {
@@ -124,13 +125,18 @@ export default function DashboardScreen() {
   const filteredTasks = selectedMood
   ? tasks.filter(t => t.mood.includes(selectedMood))
   : tasks;
-
+  const nowDate = new Date().toISOString().slice(0, 10); // e.g., "2025-06-11"
+  const todaysTasks = tasks.filter(t => t.timestamp.startsWith(nowDate));
+  const futureTasks = tasks.filter(t => !t.timestamp.startsWith(nowDate));
 
 
   const renderTaskItem = (item: Task) => {
     const firstMood = item.mood[0]; 
     const moodObj = moodOptions.find(m => m.mood === firstMood);
+    const startDate = new Date(item.timestamp);
+    const endDate = new Date(startDate.getTime() + item.length * 60000); // Add `length` minutes
     const startTime = new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const endTime = endDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
     const handleDelete = async () => {
       const token = await AsyncStorage.getItem('authToken');
@@ -157,6 +163,7 @@ export default function DashboardScreen() {
         borderRadius: 10
       }} key={item.id}>
         <Text style={{ fontWeight: 'bold' }}>{item.task}</Text>
+        <Text style={{ color: '#4b5563' }}>{startTime} - {endTime}</Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 4 }}>
           {item.mood.map((m, i) => {
             const mo = moodOptions.find(opt => opt.mood === m);
@@ -199,6 +206,34 @@ export default function DashboardScreen() {
     setModalVisible(true);
   };
 
+  const handleReschedule = async () => {
+    setRescheduling(true);
+    const token = await AsyncStorage.getItem('authToken');
+    try {
+      const res = await fetch(`${process.env.EXPO_PUBLIC_API_BASE_URL}/api/tasks/reschedule`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Reschedule failed');
+      }
+      alert('Tasks rescheduled!');
+
+      const refreshed = await fetch(`${process.env.EXPO_PUBLIC_API_BASE_URL}/api/tasks`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const updated = await refreshed.json();
+      setTasks(updated.tasks || []);
+    } catch (err) {
+      console.error('Reschedule error:', err);
+      alert('Failed to reschedule tasks');
+    } finally {
+      setRescheduling(false);
+    }
+  };
 
   return (
     <>
@@ -317,16 +352,43 @@ export default function DashboardScreen() {
           <Text style={{ color: 'white', fontWeight: 'bold' }}>＋ Add Task</Text>
         </TouchableOpacity>
 
-        {/* Task List */}
-        <Text style={{ fontSize: 18, fontWeight: '600', marginBottom: 10 }}>Today's Schedule</Text>
-        {(filteredTasks ?? []).length > 0 ? (
-          (filteredTasks ?? []).sort((a, b) =>
-            new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-          ).map(renderTaskItem)
+        {/* --- Today's Tasks --- */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text style={{ fontSize: 18, fontWeight: '600' }}>Today's Tasks</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            {rescheduling && (
+              <ActivityIndicator size="small" color="#4f46e5" style={{ marginRight: 10 }} />
+            )}
+            <TouchableOpacity
+              onPress={handleReschedule}
+              disabled={rescheduling}
+              style={{
+                backgroundColor: rescheduling ? '#e5e7eb' : '#4f46e5',
+                paddingHorizontal: 12,
+                paddingVertical: 6,
+                borderRadius: 8,
+                opacity: rescheduling ? 0.6 : 1,
+              }}
+            >
+              <Text style={{ color: 'white', fontWeight: 'bold' }}>Reschedule</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {todaysTasks.length > 0 ? (
+          todaysTasks.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+            .map(renderTaskItem)
         ) : (
-          <Text style={{ fontStyle: 'italic', color: 'gray', textAlign: 'center', marginTop: 20 }}>
-            No tasks scheduled{selectedMood ? ` for ${selectedMood} mood` : ''}. Add some!
-          </Text>
+          <Text style={{ fontStyle: 'italic', color: 'gray', marginTop: 10 }}>No tasks for today.</Text>
+        )}
+
+        {/* --- Future Tasks --- */}
+        <Text style={{ fontSize: 18, fontWeight: '600', marginTop: 20 }}>Future Tasks</Text>
+        {futureTasks.length > 0 ? (
+          futureTasks.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+            .map(renderTaskItem)
+        ) : (
+          <Text style={{ fontStyle: 'italic', color: 'gray', marginTop: 10 }}>No future tasks scheduled.</Text>
         )}
       </ScrollView>
       <TouchableOpacity onPress={async () => {
