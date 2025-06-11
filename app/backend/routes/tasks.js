@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require('../db').tasks;
 const authenticateToken = require('../middleware/auth');
 require('dotenv').config();
+const path = require('path');
 
 router.use(authenticateToken);
 
@@ -14,10 +15,10 @@ router.post('/', (req, res) => {
     return res.status(400).json({ error: 'Missing fields' });
 
   const stmt = db.prepare(`
-    INSERT INTO tasks (user_id, task, mood, timestamp, length)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO tasks (user_id, task, mood, timestamp, length, isCompleted)
+    VALUES (?, ?, ?, ?, ?, ?)
   `);
-  const info = stmt.run(userId, task, JSON.stringify(mood), timestamp, length);
+  const info = stmt.run(userId, task, JSON.stringify(mood), timestamp, length, 0);
 
 
   const newTask = {
@@ -25,7 +26,8 @@ router.post('/', (req, res) => {
     task,
     mood,
     timestamp,
-    length
+    length,
+    isCOmpleted: 0
   };
   res.status(201).json({ message: 'Task created', task: newTask });
 });
@@ -85,10 +87,10 @@ router.post('/reschedule', async (req, res) => {
 
   const tasks = db.prepare(`
     SELECT * FROM tasks
-    WHERE user_id = ? AND DATE(timestamp) = DATE('now')
+    WHERE user_id = ? AND DATE(timestamp) = DATE('now') AND isCompleted = 0
     ORDER BY timestamp ASC
   `).all(userId);
-
+  //console.log('[reschedule.py] tasks for today:', tasks);
   if (!tasks.length) {
     return res.status(404).json({ error: 'No tasks found for today' });
   }
@@ -97,19 +99,33 @@ router.post('/reschedule', async (req, res) => {
     env: { ...process.env }
   });
 
+  //console.log('[spawn path]', path.resolve('reschedule.py'));
+
   let result = '';
   let error = '';
 
-  python.stdout.on('data', (data) => result += data.toString());
-  python.stderr.on('data', (data) => error += data.toString());
+  python.stdout.on('data', (data) => {
+    result += data.toString();
+  });
+
+  python.stderr.on('data', (data) => {
+    error += data.toString();
+    //console.error('[reschedule.py stderr]', data.toString());
+  });
 
   python.stdin.write(JSON.stringify(tasks));
   python.stdin.end();
-
+ 
+  
   python.on('close', (code) => {
+    // console.log('[reschedule.py final stdout]', result); 
+    // console.log('[reschedule.py exit code]', code);
+    // console.error('[reschedule.py final stderr]', error); 
+
     if (code !== 0 || error) {
       return res.status(500).json({ error: error || 'Rescheduling failed' });
     }
+
 
     try {
       const newTasks = JSON.parse(result);
@@ -127,6 +143,16 @@ router.post('/reschedule', async (req, res) => {
       res.status(500).json({ error: 'Failed to parse rescheduled tasks' });
     }
   });
+});
+
+router.patch('/:id/complete', (req, res) => {
+  const id = parseInt(req.params.id);
+  const stmt = db.prepare('UPDATE tasks SET isCompleted = 1 WHERE id = ?');
+  const info = stmt.run(id);
+  if (info.changes === 0) {
+    return res.status(404).json({ error: 'Task not found or already completed' });
+  }
+  res.json({ message: 'Task marked as completed', id });
 });
 
 // PATCH /api/tasks/:id

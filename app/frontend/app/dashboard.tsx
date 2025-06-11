@@ -21,6 +21,7 @@ type Task = {
   mood: string[];
   timestamp: string;
   length: number;
+  isCompleted: number;
 };
 
 export default function DashboardScreen() {
@@ -162,8 +163,11 @@ export default function DashboardScreen() {
         marginVertical: 5,
         borderRadius: 10
       }} key={item.id}>
-        <Text style={{ fontWeight: 'bold' }}>{item.task}</Text>
+        <Text style={{ fontWeight: 'bold' }}>{item.task}</Text>        
         <Text style={{ color: '#4b5563' }}>{startTime} - {endTime}</Text>
+        <Text style={{ fontSize: 12, color: item.isCompleted ? 'green' : '#f59e0b' }}>
+        {item.isCompleted ? '✅ Completed' : '⏳ Not Completed'}
+      </Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 4 }}>
           {item.mood.map((m, i) => {
             const mo = moodOptions.find(opt => opt.mood === m);
@@ -184,6 +188,23 @@ export default function DashboardScreen() {
           })}
         </View>
         <TouchableOpacity onPress={handleDelete} style={{ marginTop: 6 }}>
+        <TouchableOpacity
+          onPress={async () => {
+            const token = await AsyncStorage.getItem('authToken');
+            await fetch(`${process.env.EXPO_PUBLIC_API_BASE_URL}/api/tasks/${item.id}/complete`, {
+              method: 'PATCH',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+              },
+            });
+            setTasks(prev =>
+              prev.map(t => t.id === item.id ? { ...t, isCompleted: 1 } : t)
+            );
+          }}
+          style={{ marginTop: 6 }}
+        >
+          <Text style={{ color: 'green' }}>✅ Mark as Completed</Text>
+        </TouchableOpacity>
         <Text style={{ color: 'red' }}>Delete</Text>
         </TouchableOpacity>
       </View>
