@@ -166,7 +166,6 @@ router.patch('/:id', (req, res) => {
     task: taskName = old.task,
     timestamp = old.timestamp,
     length = old.length,
-    isScheduled = old.isScheduled
   } = req.body;
 
   if (!Array.isArray(mood)) {
@@ -178,7 +177,7 @@ router.patch('/:id', (req, res) => {
     WHERE id = ?
   `).run(mood, taskName, timestamp, length, id);
 
-  res.json({ message: 'Task updated', task: { id, mood, task: taskName, timestamp, length, isScheduled } });
+  res.json({ message: 'Task updated', task: { id, mood, task: taskName, timestamp, length } });
 });
 
 // DELETE /api/tasks/:id

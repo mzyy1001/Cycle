@@ -34,6 +34,7 @@ export default function DashboardScreen() {
   const [newTaskLength, setNewTaskLength] = useState('');
   const [newTaskMood, setNewTaskMood] = useState<string[]>([]);
   const [rescheduling, setRescheduling] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
 
   useEffect(() => {
   const checkAuth = async () => {
@@ -130,7 +131,6 @@ export default function DashboardScreen() {
   const todaysTasks = tasks.filter(t => t.timestamp.startsWith(nowDate));
   const futureTasks = tasks.filter(t => !t.timestamp.startsWith(nowDate));
 
-
   const renderTaskItem = (item: Task) => {
     const firstMood = item.mood[0]; 
     const moodObj = moodOptions.find(m => m.mood === firstMood);
@@ -157,61 +157,131 @@ export default function DashboardScreen() {
     };
 
     return (
-      <View style={{
-        backgroundColor: moodObj?.color || '#fff',
-        padding: 10,
-        marginVertical: 5,
-        borderRadius: 10
-      }} key={item.id}>
-        <Text style={{ fontWeight: 'bold' }}>{item.task}</Text>        
-        <Text style={{ color: '#4b5563' }}>{startTime} - {endTime}</Text>
-        <Text style={{ fontSize: 12, color: item.isCompleted ? 'green' : '#f59e0b' }}>
-        {item.isCompleted ? '✅ Completed' : '⏳ Not Completed'}
-      </Text>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 4 }}>
-          {item.mood.map((m, i) => {
-            const mo = moodOptions.find(opt => opt.mood === m);
-            return (
-              <View key={i} style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                backgroundColor: mo?.color || '#eee',
-                paddingHorizontal: 8,
-                paddingVertical: 4,
-                borderRadius: 12,
-                marginRight: 5,
-                marginBottom: 5
-              }}>
-                <Text>{mo?.icon} {m}</Text>
-              </View>
-            );
-          })}
+      <TouchableOpacity
+        key={item.id}
+        onLongPress={() => handleOpenEditModal(item)}
+        delayLongPress={200}
+      >
+        <View style={{
+          backgroundColor: moodObj?.color || '#fff',
+          padding: 10,
+          marginVertical: 5,
+          borderRadius: 10
+        }}>
+          <Text style={{ fontWeight: 'bold' }}>{item.task}</Text>        
+          <Text style={{ color: '#4b5563' }}>{startTime} - {endTime}</Text>
+          <Text style={{ fontSize: 12, color: item.isCompleted ? 'green' : '#f59e0b' }}>
+          {item.isCompleted ? '✅ Completed' : '⏳ Not Completed'}
+        </Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 4 }}>
+            {item.mood.map((m, i) => {
+              const mo = moodOptions.find(opt => opt.mood === m);
+              return (
+                <View key={i} style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  backgroundColor: mo?.color || '#eee',
+                  paddingHorizontal: 8,
+                  paddingVertical: 4,
+                  borderRadius: 12,
+                  marginRight: 5,
+                  marginBottom: 5
+                }}>
+                  <Text>{mo?.icon} {m}</Text>
+                </View>
+              );
+            })}
+          </View>
+          <TouchableOpacity onPress={handleDelete} style={{ marginTop: 6 }}>
+          <TouchableOpacity
+            onPress={async () => {
+              const token = await AsyncStorage.getItem('authToken');
+              await fetch(`${process.env.EXPO_PUBLIC_API_BASE_URL}/api/tasks/${item.id}/complete`, {
+                method: 'PATCH',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                },
+              });
+              setTasks(prev =>
+                prev.map(t => t.id === item.id ? { ...t, isCompleted: 1 } : t)
+              );
+            }}
+            style={{ marginTop: 6 }}
+          >
+            <Text style={{ color: 'green' }}>✅ Mark as Completed</Text>
+          </TouchableOpacity>
+          <Text style={{ color: 'red' }}>Delete</Text>
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity onPress={handleDelete} style={{ marginTop: 6 }}>
-        <TouchableOpacity
-          onPress={async () => {
-            const token = await AsyncStorage.getItem('authToken');
-            await fetch(`${process.env.EXPO_PUBLIC_API_BASE_URL}/api/tasks/${item.id}/complete`, {
-              method: 'PATCH',
-              headers: {
-                'Authorization': `Bearer ${token}`,
-              },
-            });
-            setTasks(prev =>
-              prev.map(t => t.id === item.id ? { ...t, isCompleted: 1 } : t)
-            );
-          }}
-          style={{ marginTop: 6 }}
-        >
-          <Text style={{ color: 'green' }}>✅ Mark as Completed</Text>
-        </TouchableOpacity>
-        <Text style={{ color: 'red' }}>Delete</Text>
-        </TouchableOpacity>
-      </View>
+      </TouchableOpacity>
     );
   };
 
+const handleUpdateTask = async () => {
+    if (!editingTask) return;
+
+    const token = await AsyncStorage.getItem('authToken');
+    if (!token) return;
+
+    let timestamp;
+    try {
+      const localDateTime = new Date(`${newTaskDate}T${newTaskTime}:00`);
+      if (isNaN(localDateTime.getTime())) throw new Error('Invalid date/time');
+      timestamp = localDateTime.toISOString();
+    } catch (e) {
+      alert("Invalid date or time format.");
+      return;
+    }
+
+    const taskLength = parseInt(newTaskLength, 10);
+    if (isNaN(taskLength) || taskLength <= 0) {
+      alert('Please enter a valid positive number for task length.');
+      return;
+    }
+
+    const res = await fetch(`${process.env.EXPO_PUBLIC_API_BASE_URL}/api/tasks/${editingTask.id}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        task: newTaskTitle,
+        mood: newTaskMood,
+        timestamp: timestamp,
+        length: taskLength,
+      }),
+    });
+
+    const data = await res.json();
+    if (res.ok && data.task) {
+      setTasks(prev => prev.map(t => (t.id === editingTask.id ? { ...t, ...data.task } : t)));
+      setModalVisible(false);
+      setEditingTask(null);
+    } else {
+      alert(data.error || 'Failed to update task');
+    }
+};
+
+const handleOpenEditModal = (task: Task) => {
+    setEditingTask(task);
+    setNewTaskTitle(task.task);
+    const taskDate = new Date(task.timestamp);
+    const year = taskDate.getFullYear();
+    const month = (taskDate.getMonth() + 1).toString().padStart(2, '0');
+    const day = taskDate.getDate().toString().padStart(2, '0');
+    const hours = taskDate.getHours().toString().padStart(2, '0');
+    const minutes = taskDate.getMinutes().toString().padStart(2, '0');
+    
+    setNewTaskDate(`${year}-${month}-${day}`);
+    setNewTaskTime(`${hours}:${minutes}`);
+    setNewTaskLength(String(task.length));
+    setNewTaskMood(task.mood);
+    setModalVisible(true);
+};
+
   const handleOpenModal = () => {
+    setEditingTask(null);
     const now = new Date();
     const year = now.getFullYear();
     const month = (now.getMonth() + 1).toString().padStart(2, '0');
@@ -265,7 +335,9 @@ export default function DashboardScreen() {
           <View style={{
             backgroundColor: 'white', padding: 20, borderRadius: 10, width: '90%'
           }}>
-            <Text style={{ fontSize: 20, fontWeight: 'bold' }}>Add New Task</Text>
+            <Text style={{ fontSize: 20, fontWeight: 'bold' }}>
+              {editingTask ? 'Edit Task' : 'Add New Task'}
+            </Text>
             <TextInput
               placeholder="e.g., Biology Project Research"
               value={newTaskTitle}
@@ -317,11 +389,15 @@ export default function DashboardScreen() {
               style={{ borderWidth: 1, marginVertical: 10, padding: 8, borderRadius: 5 }}
             />
             <View style={{ marginTop: 10 }}>
-              <Button title="Add Task" onPress={addTask} />
+              <Button
+                title={editingTask ? 'Save Changes' : 'Add Task'}
+                onPress={editingTask ? handleUpdateTask : addTask}
+              />
             </View>
             <View style={{ marginTop: 8 }}>
               <Button title="Cancel" onPress={() => {
                 setModalVisible(false);
+                setEditingTask(null); // Also reset editing state
                 // Reset all form fields on cancel
                 setNewTaskTitle('');
                 setNewTaskMood([]);
