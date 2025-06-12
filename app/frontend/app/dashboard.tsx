@@ -1,602 +1,304 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, ScrollView } from 'react-native';
-import { Modal, TextInput, Button, ActivityIndicator  } from 'react-native';
+// app/dashboard.tsx
+
+import React, { useEffect, useState, useMemo } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, Button } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 
+import TaskItem from '../components/TaskItem';
+import TaskModal from '../components/TaskModal';
+import { Task } from '../lib/types';
+import { moodOptions } from '../lib/constants';
 
-const moodOptions = [
-  { mood: "Focused", color: "#dbeafe", icon: "📘" },
-  { mood: "Energized", color: "#fef3c7", icon: "⚡" },
-  { mood: "Calm", color: "#d1fae5", icon: "🌿" },
-  { mood: "Creative", color: "#f3e8ff", icon: "✨" },
-  { mood: "Tired", color: "#e5e7eb", icon: "😴" },
-  { mood: "Stressed", color: "#fee2e2", icon: "😖" },
-];
-
-type Task = {
-  id: number;
-  task: string;
-  mood: string[];
-  timestamp: string;
-  length: number;
-  isCompleted: number;
-  isLocked?: boolean; // Optional field for locked tasks
-};
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL;
 
 export default function DashboardScreen() {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRescheduling, setIsRescheduling] = useState(false);
   const [selectedMood, setSelectedMood] = useState<string | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
-  const [newTaskTitle, setNewTaskTitle] = useState('');
-  const [newTaskDate, setNewTaskDate] = useState('');
-  const [newTaskTime, setNewTaskTime] = useState('');
-  const [newTaskLength, setNewTaskLength] = useState('');
-  const [newTaskMood, setNewTaskMood] = useState<string[]>([]);
-  const [rescheduling, setRescheduling] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
-  const [newTaskIsLocked, setNewTaskIsLocked] = useState(false);
-  const [selectedDate, setSelectedDate] = useState<string>(() => {
-    const today = new Date();
-    return today.toISOString().slice(0, 10); // default is today
-  });
+  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().slice(0, 10));
 
+  // --- API Functions ---
+  const getAuthToken = () => AsyncStorage.getItem('authToken');
 
-  const getLast7Days = () => {
+  const fetchTasks = async () => {
+    setIsLoading(true);
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(`${API_BASE_URL}/api/tasks`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to fetch tasks');
+      setTasks(data.tasks || []);
+    } catch (error) {
+      console.error('Fetching tasks failed:', error);
+      // alert(error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAddTask = async (taskData: Omit<Task, 'id' | 'isCompleted'>) => {
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(`${API_BASE_URL}/api/tasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(taskData),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to create task');
+      setTasks(prev => [...prev, data.task]);
+      setModalVisible(false);
+    } catch (error) {
+      console.error('Create failed:', error);
+    }
+  };
+
+  const handleUpdateTask = async (taskData: Omit<Task, 'id' | 'isCompleted'>) => {
+    if (!editingTask) return;
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(`${API_BASE_URL}/api/tasks/${editingTask.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(taskData),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update task');
+      setTasks(prev => prev.map(t => (t.id === editingTask.id ? data.task : t)));
+      setModalVisible(false);
+      setEditingTask(null);
+    } catch (error) {
+      console.error('Update failed:', error);
+    }
+  };
+
+  const handleDeleteTask = async (id: number) => {
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(`${API_BASE_URL}/api/tasks/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('Failed to delete task');
+      setTasks(prev => prev.filter(t => t.id !== id));
+    } catch (error) {
+      console.error('Delete failed:', error);
+    }
+  };
+  
+  const handleCompleteTask = async (id: number) => {
+    // Optimistic update
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, isCompleted: 1 } : t));
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(`${API_BASE_URL}/api/tasks/${id}/complete`, {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (!res.ok) { // Revert on failure
+        setTasks(prev => prev.map(t => t.id === id ? { ...t, isCompleted: 0 } : t));
+        throw new Error('Failed to mark task as complete');
+      }
+    } catch (error) {
+      console.error('Complete failed:', error);
+    }
+  };
+
+  const handleReschedule = async () => {
+    if (!selectedMood) return alert("Please select your current mood to reschedule.");
+    setIsRescheduling(true);
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(`${API_BASE_URL}/api/tasks/reschedule`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ date: selectedDate, currentMood: selectedMood }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Reschedule failed');
+      alert('Tasks rescheduled!');
+      await fetchTasks(); // Refetch all tasks to see changes
+    } catch (error) {
+      console.error('Reschedule error:', error);
+    } finally {
+      setIsRescheduling(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    await AsyncStorage.removeItem('authToken');
+    router.replace('/reg_login');
+  };
+
+  // --- Effects ---
+  useEffect(() => {
+    const checkAuthAndFetch = async () => {
+      const token = await getAuthToken();
+      if (!token) {
+        router.replace('/reg_login');
+      } else {
+        fetchTasks();
+      }
+    };
+    checkAuthAndFetch();
+  }, []);
+
+  // --- Memoized Calculations ---
+  const { filteredTasks, futureTasks } = useMemo(() => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const sortedTasks = [...tasks].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    
+    return {
+      filteredTasks: sortedTasks.filter(t => t.timestamp.startsWith(selectedDate)),
+      futureTasks: sortedTasks.filter(t => t.timestamp.slice(0, 10) > todayStr),
+    };
+  }, [tasks, selectedDate]);
+
+  const last7Days = useMemo(() => {
     const days = [];
     const today = new Date();
     for (let i = 0; i < 7; i++) {
       const d = new Date(today);
       d.setDate(today.getDate() + i);
-      const iso = d.toISOString().slice(0, 10);
-      days.push(iso);
+      days.push(d.toISOString().slice(0, 10));
     }
     return days;
-  };
-
-  useEffect(() => {
-    const checkAuth = async () => {
-      const token = await AsyncStorage.getItem('authToken');
-      console.log('token:', token);
-      if (!token) {
-        router.replace('/reg_login');
-      }
-    };
-    checkAuth();
   }, []);
 
-  useEffect(() => {
-    const fetchTasks = async () => {
-      const token = await AsyncStorage.getItem('authToken');
-      const res = await fetch(`${process.env.EXPO_PUBLIC_API_BASE_URL}/api/tasks`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-      const data = await res.json();
-
-      if (!res.ok || !data.tasks) {
-        console.error('Fetching tasks failed:', data);
-        return;
-      }
-
-      setTasks(data.tasks);
-    };
-    fetchTasks();
-  }, []);
-
-  const addTask = async () => {
-    if (!newTaskTitle || !newTaskMood || !newTaskDate || !newTaskTime || !newTaskLength) {
-      return alert('Please fill all fields: title, mood, date, time, and length.');
-    }
-    const token = await AsyncStorage.getItem('authToken');
-    console.log('token:', token);
-
-    if (newTaskMood.length == 0) {
-      alert('Please select at least one mood for the task.')
-      return;
-    }
-
-    let timestamp;
-    try {
-      const localDateTime = new Date(`${newTaskDate}T${newTaskTime}:00`);
-      if (isNaN(localDateTime.getTime())) {
-        throw new Error('Invalid date or time format');
-      }
-      timestamp = localDateTime.toISOString();
-    } catch (error) {
-      console.error("Error parsing date/time:", error);
-      alert("Invalid date or time format. Please use YYYY-MM-DD for date and HH:MM for time.");
-      return;
-    }
-
-    const taskLength = parseInt(newTaskLength, 10);
-    if (isNaN(taskLength) || taskLength <= 0) {
-      alert('Please enter a valid positive number for task length (in minutes).');
-      return;
-    }
-
-    const res = await fetch(`${process.env.EXPO_PUBLIC_API_BASE_URL}/api/tasks`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        task: newTaskTitle,
-        mood: newTaskMood,
-        timestamp: timestamp,
-        length: taskLength,
-        isLocked: newTaskIsLocked,
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok || !data.task) {
-      console.error('Create failed:', data);
-      alert(data.error || 'Failed to create task');
-      return;
-    }
-    console.log('server returned:', data);
-
-    setTasks(prev => [...prev, data.task]);
-    setModalVisible(false);
-    setNewTaskTitle('');
-    // Reset new fields
-    setNewTaskDate('');
-    setNewTaskTime('');
-    setNewTaskLength('');
-    setNewTaskMood([]);
-    // if (!newTaskIsLocked) {
-    //   const taskDate = timestamp.slice(0, 10); // "YYYY-MM-DD"
-    //   await handleReschedule(taskDate);
-    // }
-  };
-
-  const filteredTasks = tasks.filter(t => t.timestamp.startsWith(selectedDate));
-
-  const nowDate = new Date().toISOString().slice(0, 10); // e.g., "2025-06-11"
-  const futureTasks = tasks.filter(t => !t.timestamp.startsWith(nowDate));
-
-  const renderTaskItem = (item: Task) => {
-    const firstMood = item.mood[0]; 
-    const moodObj = moodOptions.find(m => m.mood === firstMood);
-    const startDate = new Date(item.timestamp);
-    const endDate = new Date(startDate.getTime() + item.length * 60000); // Add `length` minutes
-    const startTime = new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const endTime = endDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    
-    const handleDelete = async () => {
-      const token = await AsyncStorage.getItem('authToken');
-      console.log('token:', token);
-      const res = await fetch(`${process.env.EXPO_PUBLIC_API_BASE_URL}/api/tasks/${item.id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (res.ok) {
-        setTasks(prev => prev.filter(t => t.id !== item.id));
-      } else {
-        alert('Failed to delete task');
-      }
-    };
-
-    return (
-      
-      <TouchableOpacity
-        key={item.id}
-        onLongPress={() => handleOpenEditModal(item)}
-        delayLongPress={200}
-      >
-        <View style={{
-          backgroundColor: moodObj?.color || '#fff',
-          padding: 10,
-          marginVertical: 5,
-          borderRadius: 10
-        }}>
-          <Text style={{ fontWeight: 'bold' }}>{item.task}</Text>        
-          <Text style={{ color: '#4b5563' }}>{startTime} - {endTime}</Text>
-          <Text style={{ fontSize: 12, color: item.isCompleted ? 'green' : '#f59e0b' }}>
-          {item.isCompleted ? '✅ Completed' : '⏳ Not Completed'}
-        </Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 4 }}>
-            {item.mood.map((m, i) => {
-              const mo = moodOptions.find(opt => opt.mood === m);
-              return (
-                <View key={i} style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  backgroundColor: mo?.color || '#eee',
-                  paddingHorizontal: 8,
-                  paddingVertical: 4,
-                  borderRadius: 12,
-                  marginRight: 5,
-                  marginBottom: 5
-                }}>
-                  <Text>{mo?.icon} {m}</Text>
-                </View>
-              );
-            })}
-          </View>
-          <TouchableOpacity onPress={handleDelete} style={{ marginTop: 6 }}>
-          <TouchableOpacity
-            onPress={async () => {
-              const token = await AsyncStorage.getItem('authToken');
-              await fetch(`${process.env.EXPO_PUBLIC_API_BASE_URL}/api/tasks/${item.id}/complete`, {
-                method: 'PATCH',
-                headers: {
-                  'Authorization': `Bearer ${token}`,
-                },
-              });
-              setTasks(prev =>
-                prev.map(t => t.id === item.id ? { ...t, isCompleted: 1 } : t)
-              );
-            }}
-            style={{ marginTop: 6 }}
-          >
-            <Text style={{ color: 'green' }}>✅ Mark as Completed</Text>
-          </TouchableOpacity>
-          <Text style={{ color: 'red' }}>Delete</Text>
-          </TouchableOpacity>
-        </View>
-      </TouchableOpacity>
-    );
-  };
-
-const handleUpdateTask = async () => {
-    if (!editingTask) return;
-
-    const token = await AsyncStorage.getItem('authToken');
-    if (!token) return;
-
-    if (newTaskMood.length == 0) {
-      alert('Please select at least one mood for the task.')
-      return;
-    }
-
-    let timestamp;
-    try {
-      const localDateTime = new Date(`${newTaskDate}T${newTaskTime}:00`);
-      if (isNaN(localDateTime.getTime())) throw new Error('Invalid date/time');
-      timestamp = localDateTime.toISOString();
-    } catch (e) {
-      alert("Invalid date or time format.");
-      return;
-    }
-
-    const taskLength = parseInt(newTaskLength, 10);
-    if (isNaN(taskLength) || taskLength <= 0) {
-      alert('Please enter a valid positive number for task length.');
-      return;
-    }
-
-    const res = await fetch(`${process.env.EXPO_PUBLIC_API_BASE_URL}/api/tasks/${editingTask.id}`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        task: newTaskTitle,
-        mood: newTaskMood,
-        timestamp: timestamp,
-        length: taskLength,
-        isLocked: newTaskIsLocked,
-      }),
-    });
-
-    const data = await res.json();
-    if (res.ok && data.task) {
-      setTasks(prev => prev.map(t => (t.id === editingTask.id ? { ...t, ...data.task } : t)));
-      setModalVisible(false);
-      setEditingTask(null);
-    } else {
-      alert(data.error || 'Failed to update task');
-    }
-    // if (!newTaskIsLocked) {
-    //   await handleReschedule();
-    // }
-};
-
-const handleOpenEditModal = (task: Task) => {
-    setNewTaskIsLocked(task.isLocked ?? false);
-    setEditingTask(task);
-    setNewTaskTitle(task.task);
-    const taskDate = new Date(task.timestamp);
-    const year = taskDate.getFullYear();
-    const month = (taskDate.getMonth() + 1).toString().padStart(2, '0');
-    const day = taskDate.getDate().toString().padStart(2, '0');
-    const hours = taskDate.getHours().toString().padStart(2, '0');
-    const minutes = taskDate.getMinutes().toString().padStart(2, '0');
-    
-    setNewTaskDate(`${year}-${month}-${day}`);
-    setNewTaskTime(`${hours}:${minutes}`);
-    setNewTaskLength(String(task.length));
-    setNewTaskMood(task.mood);
-    setModalVisible(true);
-};
-
-  const handleOpenModal = () => {
+  // --- Modal Handlers ---
+  const openAddModal = () => {
     setEditingTask(null);
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = (now.getMonth() + 1).toString().padStart(2, '0');
-    const day = now.getDate().toString().padStart(2, '0');
-    const hours = now.getHours().toString().padStart(2, '0');
-    const minutes = now.getMinutes().toString().padStart(2, '0');
-
-    setNewTaskDate(`${year}-${month}-${day}`);
-    setNewTaskTime(`${hours}:${minutes}`);
-    setNewTaskLength('30');
-    setNewTaskTitle('');
-    setNewTaskMood([]);
     setModalVisible(true);
   };
 
-  const handleReschedule = async (dateOverride?: string) => {
-    if (selectedMood === null) {
-      alert("You need to choose your current mood to reschedule.");
-      return;
-    }
-
-    setRescheduling(true);
-    const token = await AsyncStorage.getItem('authToken');
-    const date = dateOverride || selectedDate
-    console.log('Rescheduling tasks for date:', date);
-    try {
-      const res = await fetch(`${process.env.EXPO_PUBLIC_API_BASE_URL}/api/tasks/reschedule`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({date: date, currentMood: selectedMood})
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Reschedule failed');
-      }
-      alert('Tasks rescheduled!');
-
-      const refreshed = await fetch(`${process.env.EXPO_PUBLIC_API_BASE_URL}/api/tasks`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const updated = await refreshed.json();
-      setTasks(updated.tasks || []);
-    } catch (err) {
-      console.error('Reschedule error:', err);
-      alert('Failed to reschedule tasks');
-    } finally {
-      setRescheduling(false);
-    }
+  const openEditModal = (task: Task) => {
+    setEditingTask(task);
+    setModalVisible(true);
   };
+
+  // --- Render ---
+  if (isLoading) {
+    return <View style={styles.centered}><ActivityIndicator size="large" color="#4f46e5" /></View>;
+  }
 
   return (
     <>
-      <Modal visible={modalVisible} transparent animationType="slide">
-        <View style={{
-          flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)'
-        }}>
-          <View style={{
-            backgroundColor: 'white', padding: 20, borderRadius: 10, width: '90%'
-          }}>
-            <Text style={{ fontSize: 20, fontWeight: 'bold' }}>
-              {editingTask ? 'Edit Task' : 'Add New Task'}
-            </Text>
-            <TextInput
-              placeholder="e.g., Biology Project Research"
-              value={newTaskTitle}
-              onChangeText={setNewTaskTitle}
-              style={{ borderWidth: 1, marginVertical: 10, padding: 8, borderRadius: 5 }}
-            />
-            <Text style={{ marginBottom: 5 }}>Best Suited Mood</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 10 }}>
-              {moodOptions.map(({ mood, color, icon }) => (
-                <TouchableOpacity
-                  key={mood}
-                  onPress={() => {
-                    if (newTaskMood.includes(mood)) {
-                      setNewTaskMood(prev => prev.filter(m => m !== mood));
-                    } else {
-                      setNewTaskMood(prev => [...prev, mood]);
-                    }
-                  }}
-                  style={{
-                    backgroundColor: color,
-                    padding: 10,
-                    margin: 5,
-                    borderRadius: 10,
-                    borderWidth: newTaskMood.includes(mood) ? 2 : 0,
-                    borderColor: newTaskMood.includes(mood) ? '#4f46e5' : 'transparent', // Highlight selected mood
-                  }}
-                >
-                  <Text>{icon} {mood}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <TextInput
-              placeholder="Date (YYYY-MM-DD)"
-              value={newTaskDate}
-              onChangeText={setNewTaskDate}
-              style={{ borderWidth: 1, marginVertical: 10, padding: 8, borderRadius: 5 }}
-            />
-            <TextInput
-              placeholder="Time (HH:MM, 24-hour)"
-              value={newTaskTime}
-              onChangeText={setNewTaskTime}
-              style={{ borderWidth: 1, marginVertical: 10, padding: 8, borderRadius: 5 }}
-            />
-            <TextInput
-              placeholder="Length (minutes)"
-              value={newTaskLength}
-              onChangeText={setNewTaskLength}
-              keyboardType="numeric"
-              style={{ borderWidth: 1, marginVertical: 10, padding: 8, borderRadius: 5 }}
-            />
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 10 }}>
-              <TouchableOpacity
-                onPress={() => setNewTaskIsLocked(!newTaskIsLocked)}
-                style={{
-                  backgroundColor: newTaskIsLocked ? '#f87171' : '#d1d5db',
-                  padding: 10,
-                  borderRadius: 8,
-                  marginRight: 10,
-                }}
-              >
-                <Text style={{ color: 'white', fontWeight: 'bold' }}>
-                  {newTaskIsLocked ? '🔒 Locked' : '🔓 Unlock'}
-                </Text>
-              </TouchableOpacity>
-              <Text>{newTaskIsLocked ? 'Task will NOT be rescheduled' : 'Task is flexible for reschedule'}</Text>
-            </View>
-            <View style={{ marginTop: 10 }}>
-              <Button
-                title={editingTask ? 'Save Changes' : 'Add Task'}
-                onPress={editingTask ? handleUpdateTask : addTask}
-              />
-            </View>
-            <View style={{ marginTop: 8 }}>
-              <Button title="Cancel" onPress={() => {
-                setModalVisible(false);
-                setEditingTask(null); // Also reset editing state
-                // Reset all form fields on cancel
-                setNewTaskTitle('');
-                setNewTaskMood([]);
-                setNewTaskDate('');
-                setNewTaskTime('');
-                setNewTaskLength('');
-              }} color="gray" />
-            </View>
-          </View>
-        </View>
-      </Modal>
+      <TaskModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        onSubmit={editingTask ? handleUpdateTask : handleAddTask}
+        editingTask={editingTask}
+      />
 
-     
-
-      <ScrollView contentContainerStyle={{ padding: 20 }}>
-
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Text style={{ fontSize: 24, fontWeight: 'bold' }}>Your Student Timetable</Text>
-
-          <TouchableOpacity
-            onPress={() => router.push('/calendar')}
-            style={{
-              backgroundColor: '#4f46e5',
-              padding: 10,
-              borderRadius: 8,
-              marginLeft: 10
-            }}
-          >
-            <Text style={{ color: 'white', fontWeight: 'bold' }}>📅 calendar</Text>
+      <ScrollView contentContainerStyle={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Your Timetable</Text>
+          <TouchableOpacity onPress={() => router.push('/calendar')} style={styles.calendarButton}>
+            <Text style={styles.calendarButtonText}>📅 Calendar</Text>
           </TouchableOpacity>
         </View>
-        <Text style={{ marginVertical: 10 }}>How are you feeling now?</Text>
 
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 20 }}>
+        <Text style={styles.subtitle}>How are you feeling now?</Text>
+        <View style={styles.moodSelectorContainer}>
           {moodOptions.map(({ mood, color, icon }) => (
             <TouchableOpacity
               key={mood}
-              onPress={() => setSelectedMood(mood === selectedMood ? null : mood)}
-              style={{
-                backgroundColor: color,
-                padding: 10,
-                borderRadius: 10,
-                margin: 5,
-                minWidth: '30%',
-                alignItems: 'center',
-                borderWidth: selectedMood === mood ? 2 : 0,
-                borderColor: selectedMood === mood ? '#4f46e5' : 'transparent',
-              }}
+              onPress={() => setSelectedMood(m => m === mood ? null : mood)}
+              style={[
+                styles.moodButton,
+                { backgroundColor: color },
+                selectedMood === mood && styles.selectedMoodButton,
+              ]}
             >
               <Text>{icon}</Text>
               <Text>{mood}</Text>
             </TouchableOpacity>
           ))}
         </View>
-        <TouchableOpacity
-            onPress={handleOpenModal} // Use handleOpenModal to prefill and show
-            style={{
-              backgroundColor: '#4f46e5',
-              padding: 12,
-              borderRadius: 10,
-              marginVertical: 10,
-              alignSelf: 'flex-start'
-            }}
-          >
-          <Text style={{ color: 'white', fontWeight: 'bold' }}>＋ Add Task</Text>
+
+        <TouchableOpacity onPress={openAddModal} style={styles.addTaskButton}>
+          <Text style={styles.addTaskButtonText}>＋ Add Task</Text>
         </TouchableOpacity>
-        
-        <Text style={{ fontSize: 18, fontWeight: '600' }}>
-          Tasks for {new Date(selectedDate).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+
+        <Text style={styles.sectionTitle}>
+          Tasks for {new Date(selectedDate + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
         </Text>
-        <View style={{ flexDirection: 'row', marginBottom: 10, flexWrap: 'wrap' }}>
-          {getLast7Days().map(date => {
-            const label = new Date(date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
-            const isSelected = date === selectedDate;
-            return (
-              <TouchableOpacity
-                key={date}
-                onPress={() => setSelectedDate(date)}
-                style={{
-                  padding: 8,
-                  borderRadius: 8,
-                  backgroundColor: isSelected ? '#4f46e5' : '#e5e7eb',
-                  marginRight: 8,
-                  marginBottom: 8,
-                }}
-              >
-                <Text style={{ color: isSelected ? 'white' : 'black', fontWeight: 'bold' }}>{label}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>     
-
-        {/* --- Today's Tasks --- */}
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Text style={{ fontSize: 18, fontWeight: '600' }}>Today's Tasks</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            {rescheduling && (
-              <ActivityIndicator size="small" color="#4f46e5" style={{ marginRight: 10 }} />
-            )}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.dateSelector}>
+          {last7Days.map(date => (
             <TouchableOpacity
-              onPress={() => handleReschedule()}
-              disabled={rescheduling}
-              style={{
-                backgroundColor: rescheduling ? '#e5e7eb' : '#4f46e5',
-                paddingHorizontal: 12,
-                paddingVertical: 6,
-                borderRadius: 8,
-                opacity: rescheduling ? 0.6 : 1,
-              }}
+              key={date}
+              onPress={() => setSelectedDate(date)}
+              style={[styles.dateButton, selectedDate === date && styles.selectedDateButton]}
             >
-              <Text style={{ color: 'white', fontWeight: 'bold' }}>Reschedule</Text>
+              <Text style={[styles.dateButtonText, selectedDate === date && styles.selectedDateButtonText]}>
+                {new Date(date + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', day: 'numeric' })}
+              </Text>
             </TouchableOpacity>
-          </View>
-        </View>
+          ))}
+        </ScrollView>
 
+        <View style={styles.tasksHeader}>
+          <Text style={styles.sectionTitle}>Today's Tasks</Text>
+          <TouchableOpacity
+            onPress={handleReschedule}
+            disabled={isRescheduling}
+            style={[styles.rescheduleButton, isRescheduling && styles.disabledButton]}
+          >
+            {isRescheduling ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.rescheduleButtonText}>Reschedule</Text>}
+          </TouchableOpacity>
+        </View>
         {filteredTasks.length > 0 ? (
-          filteredTasks.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
-            .map(renderTaskItem)
+          filteredTasks.map(task => <TaskItem key={task.id} item={task} onEdit={openEditModal} onDelete={handleDeleteTask} onComplete={handleCompleteTask} />)
         ) : (
-          <Text style={{ fontStyle: 'italic', color: 'gray', marginTop: 10 }}>No tasks for today.</Text>
+          <Text style={styles.emptyText}>No tasks for this day.</Text>
         )}
 
-        {/* --- Future Tasks --- */}
-        <Text style={{ fontSize: 18, fontWeight: '600', marginTop: 20 }}>Future Tasks</Text>
+        <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Future Tasks</Text>
         {futureTasks.length > 0 ? (
-          futureTasks.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
-            .map(renderTaskItem)
+          futureTasks.map(task => <TaskItem key={task.id} item={task} onEdit={openEditModal} onDelete={handleDeleteTask} onComplete={handleCompleteTask} />)
         ) : (
-          <Text style={{ fontStyle: 'italic', color: 'gray', marginTop: 10 }}>No future tasks scheduled.</Text>
+          <Text style={styles.emptyText}>No future tasks scheduled.</Text>
         )}
       </ScrollView>
-      <TouchableOpacity onPress={async () => {
-        await AsyncStorage.removeItem('authToken');
-        router.replace('/reg_login');
-      }} style={{ padding: 10, alignItems: 'center', backgroundColor: '#f3f4f6', borderTopWidth: 1, borderColor: '#e5e7eb' }}>
-        <Text style={{ color: '#ef4444', fontWeight: 'bold' }}>Logout</Text>
+
+      <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
+        <Text style={styles.logoutButtonText}>Logout</Text>
       </TouchableOpacity>
     </>
   );
 }
+
+// --- Styles for DashboardScreen ---
+const styles = StyleSheet.create({
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  container: { padding: 20, paddingBottom: 80 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  title: { fontSize: 24, fontWeight: 'bold' },
+  calendarButton: { backgroundColor: '#4f46e5', padding: 10, borderRadius: 8 },
+  calendarButtonText: { color: 'white', fontWeight: 'bold' },
+  subtitle: { marginVertical: 10, fontSize: 16 },
+  moodSelectorContainer: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', marginBottom: 10 },
+  moodButton: { padding: 10, borderRadius: 10, margin: 5, minWidth: '30%', alignItems: 'center' },
+  selectedMoodButton: { borderWidth: 2, borderColor: '#4f46e5' },
+  addTaskButton: { backgroundColor: '#4f46e5', padding: 12, borderRadius: 10, marginVertical: 10, alignSelf: 'flex-start' },
+  addTaskButtonText: { color: 'white', fontWeight: 'bold' },
+  sectionTitle: { fontSize: 18, fontWeight: '600', marginTop: 15 },
+  dateSelector: { marginVertical: 10 },
+  dateButton: { padding: 10, borderRadius: 8, backgroundColor: '#e5e7eb', marginRight: 8 },
+  selectedDateButton: { backgroundColor: '#4f46e5' },
+  dateButtonText: { color: 'black', fontWeight: 'bold' },
+  selectedDateButtonText: { color: 'white' },
+  tasksHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 },
+  rescheduleButton: { backgroundColor: '#4f46e5', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, flexDirection: 'row', alignItems: 'center' },
+  disabledButton: { backgroundColor: '#a5b4fc' },
+  rescheduleButtonText: { color: 'white', fontWeight: 'bold' },
+  emptyText: { fontStyle: 'italic', color: 'gray', marginTop: 10, textAlign: 'center' },
+  logoutButton: { padding: 15, alignItems: 'center', backgroundColor: '#f3f4f6', borderTopWidth: 1, borderColor: '#e5e7eb' },
+  logoutButtonText: { color: '#ef4444', fontWeight: 'bold' },
+});
