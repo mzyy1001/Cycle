@@ -5,7 +5,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 
 
-
 const moodOptions = [
   { mood: "Focused", color: "#dbeafe", icon: "📘" },
   { mood: "Energized", color: "#fef3c7", icon: "⚡" },
@@ -184,6 +183,7 @@ export default function DashboardScreen() {
     };
 
     return (
+      
       <TouchableOpacity
         key={item.id}
         onLongPress={() => handleOpenEditModal(item)}
@@ -467,10 +467,25 @@ const handleOpenEditModal = (task: Task) => {
         </View>
       </Modal>
 
+     
 
       <ScrollView contentContainerStyle={{ padding: 20 }}>
 
-        <Text style={{ fontSize: 24, fontWeight: 'bold' }}>Your Student Timetable</Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text style={{ fontSize: 24, fontWeight: 'bold' }}>Your Student Timetable</Text>
+
+          <TouchableOpacity
+            onPress={() => router.push('/calendar')}
+            style={{
+              backgroundColor: '#4f46e5',
+              padding: 10,
+              borderRadius: 8,
+              marginLeft: 10
+            }}
+          >
+            <Text style={{ color: 'white', fontWeight: 'bold' }}>📅 calendar</Text>
+          </TouchableOpacity>
+        </View>
         <Text style={{ marginVertical: 10 }}>How are you feeling now?</Text>
 
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 20 }}>

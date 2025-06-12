@@ -76,6 +76,12 @@ export default function Index() {
             </TouchableOpacity>
 
             <TouchableOpacity
+              style={styles.buttonPrimary}
+              onPress={() => router.push('/calendar')}
+            >
+              <Text style={styles.buttonText}>Calendar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
               style={styles.buttonSecondary}
               onPress={handleLogout}
             >
