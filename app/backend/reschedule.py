@@ -20,12 +20,14 @@ def simplify_time_range(start_iso: str, end_iso: str) -> str:
     end = datetime.fromisoformat(end_iso)
     return f"{start.strftime('%H:%M')} - {end.strftime('%H:%M')}"
 
-def call_gpt_rescheduler(tasks, now_iso, blocked):
+def call_gpt_rescheduler(tasks, now_iso, blocked, currMood):
     blocked_str = "\n".join(
         f"- {simplify_time_range(b['start'], b['end'])}" for b in blocked
     )
     prompt = f"""
 You are a smart personal task scheduler.
+
+Currently the user feels {currMood}
 
 The current time is: {now_iso}, please allocate tasks for today after this time.
 
@@ -35,18 +37,14 @@ Blocked time ranges to avoid:
 Here is a list of today's tasks in JSON format. Each task contains:
 - id: task ID
 - task: task name
-- mood: user's mood (e.g., "Focused", "Tired", "Creative")
-- timestamp: current timestamp (you may ignore this)
+- mood: moods the user assigns to the task (e.g., "Focused", "Tired", "Creative")
+- timestamp: current timestamp
 - length: task length in minutes
 
 Your job is to reschedule all tasks **within today**, between **09:00 and 18:00**, satisfying the following rules:
 
 1. The tasks must not overlap.
-2. Each task should be scheduled for its specified `length` duration.
-3. Tasks with mood "Focused" should be scheduled earlier in the day.
-4. Tasks with mood "Tired" should be scheduled later in the day.
-5. Try to place short breaks (5-10 minutes) between tasks if time allows.
-6. Keep all tasks within the time range of {now_iso} to 24:00.
+2. Keep all tasks within the time range of {now_iso} to 24:00.
 Here is the task list:
 
 {json.dumps(tasks, indent=2)}
@@ -72,12 +70,13 @@ def main():
         input = json.load(sys.stdin)
         tasks = input["tasks"]
         blocked = input.get("blockedSlots", [])
+        currMood = input["currentMood"]
         # with open(os.path.join(base_dir, "debug_input.json"), "w", encoding="utf-8") as f:
         #     json.dump(tasks, f, indent=2)
         now = datetime.now().strftime("%H:%M") 
         with open(os.path.join(base_dir, "debug_time.txt"), "w", encoding="utf-8") as f:
             f.write(now)
-        new_schedule = call_gpt_rescheduler(tasks, now, blocked)
+        new_schedule = call_gpt_rescheduler(tasks, now, blocked, currMood)
         # with open(os.path.join(base_dir, "debug_output.json"), "w", encoding="utf-8") as f:
         #     json.dump(new_schedule, f, indent=2)
         print(new_schedule)

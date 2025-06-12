@@ -85,6 +85,7 @@ const { spawn } = require('child_process');
 router.post('/reschedule', async (req, res) => {
   const userId = req.user.id;
   const inputDate = req.body.date;
+  const currMood = req.body.currentMood;
 
   if (!inputDate || !/^\d{4}-\d{2}-\d{2}$/.test(inputDate)) {
     console.error('Invalid date format:', inputDate);
@@ -128,7 +129,8 @@ router.post('/reschedule', async (req, res) => {
       start: t.timestamp,
       end: new Date(new Date(t.timestamp).getTime() + t.length * 60000).toISOString(),
     })),
-    date: inputDate
+    date: inputDate,
+    currentMood: currMood
   };
 
   python.stdin.write(JSON.stringify(input));

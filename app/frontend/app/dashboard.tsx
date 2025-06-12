@@ -146,10 +146,10 @@ export default function DashboardScreen() {
     setNewTaskTime('');
     setNewTaskLength('');
     setNewTaskMood([]);
-    if (!newTaskIsLocked) {
-      const taskDate = timestamp.slice(0, 10); // "YYYY-MM-DD"
-      await handleReschedule(taskDate);
-    }
+    // if (!newTaskIsLocked) {
+    //   const taskDate = timestamp.slice(0, 10); // "YYYY-MM-DD"
+    //   await handleReschedule(taskDate);
+    // }
   };
 
   const filteredTasks = tasks.filter(t => t.timestamp.startsWith(selectedDate));
@@ -294,9 +294,9 @@ const handleUpdateTask = async () => {
     } else {
       alert(data.error || 'Failed to update task');
     }
-    if (!newTaskIsLocked) {
-      await handleReschedule();
-    }
+    // if (!newTaskIsLocked) {
+    //   await handleReschedule();
+    // }
 };
 
 const handleOpenEditModal = (task: Task) => {
@@ -335,6 +335,11 @@ const handleOpenEditModal = (task: Task) => {
   };
 
   const handleReschedule = async (dateOverride?: string) => {
+    if (selectedMood === null) {
+      alert("You need to choose your current mood to reschedule.");
+      return;
+    }
+
     setRescheduling(true);
     const token = await AsyncStorage.getItem('authToken');
     const date = dateOverride || selectedDate
@@ -346,7 +351,7 @@ const handleOpenEditModal = (task: Task) => {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({date: date})
+        body: JSON.stringify({date: date, currentMood: selectedMood})
       });
       const data = await res.json();
       if (!res.ok) {
