@@ -53,7 +53,7 @@ Note that the timestamp is a new ISO 8601 timestamp (e.g., "2025-06-11T09:30:00"
 """
 
     response = client.responses.parse(
-        model="gpt-4.1-nano",
+        model="gpt-4.1-mini",
         input=[{ "role": "user", "content": prompt }],
         temperature=0.2,
         text_format=ReschedulingResult,
