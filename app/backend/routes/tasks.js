@@ -118,9 +118,9 @@ router.post('/reschedule', async (req, res) => {
  
   
   python.on('close', (code) => {
-    // console.log('[reschedule.py final stdout]', result); 
-    // console.log('[reschedule.py exit code]', code);
-    // console.error('[reschedule.py final stderr]', error); 
+    console.log('[reschedule.py final stdout]', result); 
+    console.log('[reschedule.py exit code]', code);
+    console.error('[reschedule.py final stderr]', error); 
 
     if (code !== 0 || error) {
       return res.status(500).json({ error: error || 'Rescheduling failed' });
