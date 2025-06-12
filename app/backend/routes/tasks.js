@@ -87,6 +87,7 @@ router.post('/reschedule', async (req, res) => {
   const inputDate = req.body.date;
 
   if (!inputDate || !/^\d{4}-\d{2}-\d{2}$/.test(inputDate)) {
+    console.error('Invalid date format:', inputDate);
     return res.status(400).json({ error: 'Missing or invalid date (expected YYYY-MM-DD)' });
   }
 

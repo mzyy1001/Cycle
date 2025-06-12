@@ -337,13 +337,16 @@ const handleOpenEditModal = (task: Task) => {
   const handleReschedule = async (dateOverride?: string) => {
     setRescheduling(true);
     const token = await AsyncStorage.getItem('authToken');
+    const date = dateOverride || selectedDate
+    console.log('Rescheduling tasks for date:', date);
     try {
       const res = await fetch(`${process.env.EXPO_PUBLIC_API_BASE_URL}/api/tasks/reschedule`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ date: dateOverride || selectedDate })
+        body: JSON.stringify({date: date})
       });
       const data = await res.json();
       if (!res.ok) {
@@ -503,30 +506,32 @@ const handleOpenEditModal = (task: Task) => {
           >
           <Text style={{ color: 'white', fontWeight: 'bold' }}>＋ Add Task</Text>
         </TouchableOpacity>
-      <Text style={{ fontSize: 18, fontWeight: '600' }}>
-        Tasks for {new Date(selectedDate).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
-      </Text>
-      <View style={{ flexDirection: 'row', marginBottom: 10, flexWrap: 'wrap' }}>
-        {getLast7Days().map(date => {
-          const label = new Date(date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
-          const isSelected = date === selectedDate;
-          return (
-            <TouchableOpacity
-              key={date}
-              onPress={() => setSelectedDate(date)}
-              style={{
-                padding: 8,
-                borderRadius: 8,
-                backgroundColor: isSelected ? '#4f46e5' : '#e5e7eb',
-                marginRight: 8,
-                marginBottom: 8,
-              }}
-            >
-              <Text style={{ color: isSelected ? 'white' : 'black', fontWeight: 'bold' }}>{label}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>        
+        
+        <Text style={{ fontSize: 18, fontWeight: '600' }}>
+          Tasks for {new Date(selectedDate).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+        </Text>
+        <View style={{ flexDirection: 'row', marginBottom: 10, flexWrap: 'wrap' }}>
+          {getLast7Days().map(date => {
+            const label = new Date(date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+            const isSelected = date === selectedDate;
+            return (
+              <TouchableOpacity
+                key={date}
+                onPress={() => setSelectedDate(date)}
+                style={{
+                  padding: 8,
+                  borderRadius: 8,
+                  backgroundColor: isSelected ? '#4f46e5' : '#e5e7eb',
+                  marginRight: 8,
+                  marginBottom: 8,
+                }}
+              >
+                <Text style={{ color: isSelected ? 'white' : 'black', fontWeight: 'bold' }}>{label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>     
+
         {/* --- Today's Tasks --- */}
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <Text style={{ fontSize: 18, fontWeight: '600' }}>Today's Tasks</Text>
