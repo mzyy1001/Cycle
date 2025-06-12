@@ -37,18 +37,34 @@ export default function DashboardScreen() {
   const [rescheduling, setRescheduling] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [newTaskIsLocked, setNewTaskIsLocked] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<string>(() => {
+    const today = new Date();
+    return today.toISOString().slice(0, 10); // default is today
+  });
 
+
+  const getLast7Days = () => {
+    const days = [];
+    const today = new Date();
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() + i);
+      const iso = d.toISOString().slice(0, 10);
+      days.push(iso);
+    }
+    return days;
+  };
 
   useEffect(() => {
-  const checkAuth = async () => {
-    const token = await AsyncStorage.getItem('authToken');
-    console.log('token:', token);
-    if (!token) {
-      router.replace('/reg_login');
-    }
-  };
-  checkAuth();
-}, []);
+    const checkAuth = async () => {
+      const token = await AsyncStorage.getItem('authToken');
+      console.log('token:', token);
+      if (!token) {
+        router.replace('/reg_login');
+      }
+    };
+    checkAuth();
+  }, []);
 
   useEffect(() => {
     const fetchTasks = async () => {
@@ -132,15 +148,14 @@ export default function DashboardScreen() {
     setNewTaskLength('');
     setNewTaskMood([]);
     if (!newTaskIsLocked) {
-      await handleReschedule();
+      const taskDate = timestamp.slice(0, 10); // "YYYY-MM-DD"
+      await handleReschedule(taskDate);
     }
   };
 
-  const filteredTasks = selectedMood
-  ? tasks.filter(t => t.mood.includes(selectedMood))
-  : tasks;
+  const filteredTasks = tasks.filter(t => t.timestamp.startsWith(selectedDate));
+
   const nowDate = new Date().toISOString().slice(0, 10); // e.g., "2025-06-11"
-  const todaysTasks = tasks.filter(t => t.timestamp.startsWith(nowDate));
   const futureTasks = tasks.filter(t => !t.timestamp.startsWith(nowDate));
 
   const renderTaskItem = (item: Task) => {
@@ -150,7 +165,7 @@ export default function DashboardScreen() {
     const endDate = new Date(startDate.getTime() + item.length * 60000); // Add `length` minutes
     const startTime = new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const endTime = endDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
+    
     const handleDelete = async () => {
       const token = await AsyncStorage.getItem('authToken');
       console.log('token:', token);
@@ -319,7 +334,7 @@ const handleOpenEditModal = (task: Task) => {
     setModalVisible(true);
   };
 
-  const handleReschedule = async () => {
+  const handleReschedule = async (dateOverride?: string) => {
     setRescheduling(true);
     const token = await AsyncStorage.getItem('authToken');
     try {
@@ -327,7 +342,8 @@ const handleOpenEditModal = (task: Task) => {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
-        }
+        },
+        body: JSON.stringify({ date: dateOverride || selectedDate })
       });
       const data = await res.json();
       if (!res.ok) {
@@ -448,6 +464,7 @@ const handleOpenEditModal = (task: Task) => {
         </View>
       </Modal>
 
+
       <ScrollView contentContainerStyle={{ padding: 20 }}>
 
         <Text style={{ fontSize: 24, fontWeight: 'bold' }}>Your Student Timetable</Text>
@@ -486,7 +503,30 @@ const handleOpenEditModal = (task: Task) => {
           >
           <Text style={{ color: 'white', fontWeight: 'bold' }}>＋ Add Task</Text>
         </TouchableOpacity>
-
+      <Text style={{ fontSize: 18, fontWeight: '600' }}>
+        Tasks for {new Date(selectedDate).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+      </Text>
+      <View style={{ flexDirection: 'row', marginBottom: 10, flexWrap: 'wrap' }}>
+        {getLast7Days().map(date => {
+          const label = new Date(date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+          const isSelected = date === selectedDate;
+          return (
+            <TouchableOpacity
+              key={date}
+              onPress={() => setSelectedDate(date)}
+              style={{
+                padding: 8,
+                borderRadius: 8,
+                backgroundColor: isSelected ? '#4f46e5' : '#e5e7eb',
+                marginRight: 8,
+                marginBottom: 8,
+              }}
+            >
+              <Text style={{ color: isSelected ? 'white' : 'black', fontWeight: 'bold' }}>{label}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>        
         {/* --- Today's Tasks --- */}
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <Text style={{ fontSize: 18, fontWeight: '600' }}>Today's Tasks</Text>
@@ -495,7 +535,7 @@ const handleOpenEditModal = (task: Task) => {
               <ActivityIndicator size="small" color="#4f46e5" style={{ marginRight: 10 }} />
             )}
             <TouchableOpacity
-              onPress={handleReschedule}
+              onPress={() => handleReschedule()}
               disabled={rescheduling}
               style={{
                 backgroundColor: rescheduling ? '#e5e7eb' : '#4f46e5',
@@ -510,8 +550,8 @@ const handleOpenEditModal = (task: Task) => {
           </View>
         </View>
 
-        {todaysTasks.length > 0 ? (
-          todaysTasks.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+        {filteredTasks.length > 0 ? (
+          filteredTasks.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
             .map(renderTaskItem)
         ) : (
           <Text style={{ fontStyle: 'italic', color: 'gray', marginTop: 10 }}>No tasks for today.</Text>

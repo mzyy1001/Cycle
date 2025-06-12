@@ -84,27 +84,31 @@ const { spawn } = require('child_process');
 
 router.post('/reschedule', async (req, res) => {
   const userId = req.user.id;
+  const inputDate = req.body.date;
+
+  if (!inputDate || !/^\d{4}-\d{2}-\d{2}$/.test(inputDate)) {
+    return res.status(400).json({ error: 'Missing or invalid date (expected YYYY-MM-DD)' });
+  }
 
   const unlockedTasks = db.prepare(`
     SELECT * FROM tasks
-    WHERE user_id = ? AND DATE(timestamp) = DATE('now') AND isCompleted = 0 AND isLocked = 0
+    WHERE user_id = ? AND DATE(timestamp) = DATE(?) AND isCompleted = 0 AND isLocked = 0
     ORDER BY timestamp ASC
-  `).all(userId);
+  `).all(userId, inputDate);
+
   const lockedTasks = db.prepare(`
     SELECT * FROM tasks
-    WHERE user_id = ? AND DATE(timestamp) = DATE('now') AND isLocked = 1
+    WHERE user_id = ? AND DATE(timestamp) = DATE(?) AND isLocked = 1
     ORDER BY timestamp ASC
-  `).all(userId);
-  //console.log('[reschedule.py] tasks for today:', tasks);
+  `).all(userId, inputDate);
+
   if (!unlockedTasks.length) {
-    return res.status(404).json({ error: 'No tasks found for today' });
+    return res.status(404).json({ error: 'No tasks found for this date' });
   }
 
   const python = spawn('python3', ['reschedule.py'], {
     env: { ...process.env }
   });
-
-  //console.log('[spawn path]', path.resolve('reschedule.py'));
 
   let result = '';
   let error = '';
@@ -115,7 +119,6 @@ router.post('/reschedule', async (req, res) => {
 
   python.stderr.on('data', (data) => {
     error += data.toString();
-    //console.error('[reschedule.py stderr]', data.toString());
   });
 
   const input = {
@@ -124,12 +127,12 @@ router.post('/reschedule', async (req, res) => {
       start: t.timestamp,
       end: new Date(new Date(t.timestamp).getTime() + t.length * 60000).toISOString(),
     })),
+    date: inputDate
   };
 
   python.stdin.write(JSON.stringify(input));
   python.stdin.end();
- 
-  
+
   python.on('close', (code) => {
     console.log('[reschedule.py final stdout]', result); 
     console.log('[reschedule.py exit code]', code);
@@ -138,7 +141,6 @@ router.post('/reschedule', async (req, res) => {
     if (code !== 0 || error) {
       return res.status(500).json({ error: error || 'Rescheduling failed' });
     }
-
 
     try {
       const newTasks = JSON.parse(result);
@@ -157,6 +159,7 @@ router.post('/reschedule', async (req, res) => {
     }
   });
 });
+
 
 router.patch('/:id/complete', (req, res) => {
   const id = parseInt(req.params.id);
