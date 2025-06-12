@@ -74,6 +74,11 @@ export default function DashboardScreen() {
     const token = await AsyncStorage.getItem('authToken');
     console.log('token:', token);
 
+    if (newTaskMood.length == 0) {
+      alert('Please select at least one mood for the task.')
+      return;
+    }
+
     let timestamp;
     try {
       const localDateTime = new Date(`${newTaskDate}T${newTaskTime}:00`);
@@ -222,6 +227,11 @@ const handleUpdateTask = async () => {
 
     const token = await AsyncStorage.getItem('authToken');
     if (!token) return;
+
+    if (newTaskMood.length == 0) {
+      alert('Please select at least one mood for the task.')
+      return;
+    }
 
     let timestamp;
     try {
