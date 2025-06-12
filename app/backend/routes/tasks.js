@@ -85,13 +85,18 @@ const { spawn } = require('child_process');
 router.post('/reschedule', async (req, res) => {
   const userId = req.user.id;
 
-  const tasks = db.prepare(`
+  const unlockedTasks = db.prepare(`
     SELECT * FROM tasks
-    WHERE user_id = ? AND DATE(timestamp) = DATE('now') AND isCompleted = 0
+    WHERE user_id = ? AND DATE(timestamp) = DATE('now') AND isCompleted = 0 AND isLocked = 0
+    ORDER BY timestamp ASC
+  `).all(userId);
+  const lockedTasks = db.prepare(`
+    SELECT * FROM tasks
+    WHERE user_id = ? AND DATE(timestamp) = DATE('now') AND isLocked = 1
     ORDER BY timestamp ASC
   `).all(userId);
   //console.log('[reschedule.py] tasks for today:', tasks);
-  if (!tasks.length) {
+  if (!unlockedTasks.length) {
     return res.status(404).json({ error: 'No tasks found for today' });
   }
 
@@ -113,7 +118,15 @@ router.post('/reschedule', async (req, res) => {
     //console.error('[reschedule.py stderr]', data.toString());
   });
 
-  python.stdin.write(JSON.stringify(tasks));
+  const input = {
+    tasks: unlockedTasks,
+    blockedSlots: lockedTasks.map(t => ({
+      start: t.timestamp,
+      end: new Date(new Date(t.timestamp).getTime() + t.length * 60000).toISOString(),
+    })),
+  };
+
+  python.stdin.write(JSON.stringify(input));
   python.stdin.end();
  
   
@@ -166,6 +179,7 @@ router.patch('/:id', (req, res) => {
     task: taskName = old.task,
     timestamp = old.timestamp,
     length = old.length,
+    isLocked = old.isLocked || false
   } = req.body;
 
   if (!Array.isArray(mood)) {
@@ -173,11 +187,11 @@ router.patch('/:id', (req, res) => {
   }
 
   db.prepare(`
-    UPDATE tasks SET mood = ?, task = ?, timestamp = ?, length = ?
+    UPDATE tasks SET mood = ?, task = ?, timestamp = ?, length = ?, isLocked = ?
     WHERE id = ?
-  `).run(mood, taskName, timestamp, length, id);
+  `).run(mood, taskName, timestamp, length, id, isLocked);
 
-  res.json({ message: 'Task updated', task: { id, mood, task: taskName, timestamp, length } });
+  res.json({ message: 'Task updated', task: { id, mood, task: taskName, timestamp, length, isLocked} });
 });
 
 // DELETE /api/tasks/:id

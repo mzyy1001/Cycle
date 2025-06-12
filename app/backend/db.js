@@ -9,7 +9,8 @@ tasksDB.exec(`
     mood TEXT NOT NULL,
     timestamp TEXT NOT NULL,
     length INTEGER NOT NULL DEFAULT 30,
-    isCompleted INTEGER NOT NULL DEFAULT 0
+    isCompleted INTEGER NOT NULL DEFAULT 0,
+    isLocked INTEGER NOT NULL DEFAULT 0
   )
 `);
 

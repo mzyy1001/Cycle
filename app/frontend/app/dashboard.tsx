@@ -22,6 +22,7 @@ type Task = {
   timestamp: string;
   length: number;
   isCompleted: number;
+  isLocked?: boolean; // Optional field for locked tasks
 };
 
 export default function DashboardScreen() {
@@ -35,6 +36,8 @@ export default function DashboardScreen() {
   const [newTaskMood, setNewTaskMood] = useState<string[]>([]);
   const [rescheduling, setRescheduling] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [newTaskIsLocked, setNewTaskIsLocked] = useState(false);
+
 
   useEffect(() => {
   const checkAuth = async () => {
@@ -109,6 +112,7 @@ export default function DashboardScreen() {
         mood: newTaskMood,
         timestamp: timestamp,
         length: taskLength,
+        isLocked: newTaskIsLocked,
       }),
     });
     const data = await res.json();
@@ -127,6 +131,9 @@ export default function DashboardScreen() {
     setNewTaskTime('');
     setNewTaskLength('');
     setNewTaskMood([]);
+    if (!newTaskIsLocked) {
+      await handleReschedule();
+    }
   };
 
   const filteredTasks = selectedMood
@@ -260,6 +267,7 @@ const handleUpdateTask = async () => {
         mood: newTaskMood,
         timestamp: timestamp,
         length: taskLength,
+        isLocked: newTaskIsLocked,
       }),
     });
 
@@ -271,9 +279,13 @@ const handleUpdateTask = async () => {
     } else {
       alert(data.error || 'Failed to update task');
     }
+    if (!newTaskIsLocked) {
+      await handleReschedule();
+    }
 };
 
 const handleOpenEditModal = (task: Task) => {
+    setNewTaskIsLocked(task.isLocked ?? false);
     setEditingTask(task);
     setNewTaskTitle(task.task);
     const taskDate = new Date(task.timestamp);
@@ -398,6 +410,22 @@ const handleOpenEditModal = (task: Task) => {
               keyboardType="numeric"
               style={{ borderWidth: 1, marginVertical: 10, padding: 8, borderRadius: 5 }}
             />
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 10 }}>
+              <TouchableOpacity
+                onPress={() => setNewTaskIsLocked(!newTaskIsLocked)}
+                style={{
+                  backgroundColor: newTaskIsLocked ? '#f87171' : '#d1d5db',
+                  padding: 10,
+                  borderRadius: 8,
+                  marginRight: 10,
+                }}
+              >
+                <Text style={{ color: 'white', fontWeight: 'bold' }}>
+                  {newTaskIsLocked ? '🔒 Locked' : '🔓 Unlock'}
+                </Text>
+              </TouchableOpacity>
+              <Text>{newTaskIsLocked ? 'Task will NOT be rescheduled' : 'Task is flexible for reschedule'}</Text>
+            </View>
             <View style={{ marginTop: 10 }}>
               <Button
                 title={editingTask ? 'Save Changes' : 'Add Task'}

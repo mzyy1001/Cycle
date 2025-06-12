@@ -15,11 +15,22 @@ class TaskItem(BaseModel):
 class ReschedulingResult(BaseModel):
     items: list[TaskItem]
 
-def call_gpt_rescheduler(tasks, now_iso):
+def simplify_time_range(start_iso: str, end_iso: str) -> str:
+    start = datetime.fromisoformat(start_iso)
+    end = datetime.fromisoformat(end_iso)
+    return f"{start.strftime('%H:%M')} - {end.strftime('%H:%M')}"
+
+def call_gpt_rescheduler(tasks, now_iso, blocked):
+    blocked_str = "\n".join(
+        f"- {simplify_time_range(b['start'], b['end'])}" for b in blocked
+    )
     prompt = f"""
 You are a smart personal task scheduler.
 
 The current time is: {now_iso}, please allocate tasks for today after this time.
+
+Blocked time ranges to avoid:
+    {blocked_str}
 
 Here is a list of today's tasks in JSON format. Each task contains:
 - id: task ID
@@ -58,13 +69,15 @@ Note that the timestamp is a new ISO 8601 timestamp (e.g., "2025-06-11T09:30:00"
 
 def main():
     try:
-        tasks = json.load(sys.stdin)
+        input = json.load(sys.stdin)
+        tasks = input["tasks"]
+        blocked = input.get("blockedSlots", [])
         # with open(os.path.join(base_dir, "debug_input.json"), "w", encoding="utf-8") as f:
         #     json.dump(tasks, f, indent=2)
         now = datetime.now().strftime("%H:%M") 
         with open(os.path.join(base_dir, "debug_time.txt"), "w", encoding="utf-8") as f:
             f.write(now)
-        new_schedule = call_gpt_rescheduler(tasks, now)
+        new_schedule = call_gpt_rescheduler(tasks, now, blocked)
         # with open(os.path.join(base_dir, "debug_output.json"), "w", encoding="utf-8") as f:
         #     json.dump(new_schedule, f, indent=2)
         print(new_schedule)
