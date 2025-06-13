@@ -41,7 +41,7 @@ Here is a list of today's tasks in JSON format. Each task contains:
 - timestamp: current timestamp
 - length: task length in minutes
 
-Your job is to reschedule all tasks **within today**, between **09:00 and 18:00**, satisfying the following rules:
+Your job is to reschedule all tasks **within today**, satisfying the following rules:
 
 1. The tasks must not overlap.
 2. Keep all tasks within the time range of {now_iso} to 24:00.
