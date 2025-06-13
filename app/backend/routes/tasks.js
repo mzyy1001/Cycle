@@ -27,7 +27,7 @@ router.post('/', (req, res) => {
     mood,
     timestamp,
     length,
-    isCOmpleted: 0
+    isCompleted: 0
   };
   res.status(201).json({ message: 'Task created', task: newTask });
 });
@@ -191,11 +191,13 @@ router.patch('/:id', (req, res) => {
   if (!Array.isArray(mood)) {
     return res.status(400).json({ error: 'Mood must be an array of strings' });
   }
+  lockedNum = isLocked ? 1 : 0;
+  console.log(isLocked);
 
   db.prepare(`
     UPDATE tasks SET mood = ?, task = ?, timestamp = ?, length = ?, isLocked = ?
     WHERE id = ?
-  `).run(mood.toString(), taskName, timestamp, length, id, isLocked);
+  `).run(mood.toString(), taskName, timestamp, length, lockedNum, id);
 
   res.json({ message: 'Task updated', task: { id, mood, task: taskName, timestamp, length, isLocked} });
 });
