@@ -185,19 +185,17 @@ router.patch('/:id', (req, res) => {
     task: taskName = old.task,
     timestamp = old.timestamp,
     length = old.length,
-    isLocked = old.isLocked || false
+    isLocked = old.isLocked
   } = req.body;
 
   if (!Array.isArray(mood)) {
     return res.status(400).json({ error: 'Mood must be an array of strings' });
   }
-  lockedNum = isLocked ? 1 : 0;
-  console.log(isLocked);
 
   db.prepare(`
     UPDATE tasks SET mood = ?, task = ?, timestamp = ?, length = ?, isLocked = ?
     WHERE id = ?
-  `).run(mood.toString(), taskName, timestamp, length, lockedNum, id);
+  `).run(mood.toString(), taskName, timestamp, length, isLocked ? 1 : 0, id);
 
   res.json({ message: 'Task updated', task: { id, mood, task: taskName, timestamp, length, isLocked} });
 });

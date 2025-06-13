@@ -120,7 +120,7 @@ export default function DashboardScreen() {
   };
   
   const handleCompleteTask = async (id: number) => {
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, isCompleted: 1 } : t));
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, isCompleted: true } : t));
     try {
       const token = await getAuthToken();
       const res = await fetch(`${API_BASE_URL}/api/tasks/${id}/complete`, {
@@ -128,7 +128,7 @@ export default function DashboardScreen() {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       if (!res.ok) {
-        setTasks(prev => prev.map(t => t.id === id ? { ...t, isCompleted: 0 } : t));
+        setTasks(prev => prev.map(t => t.id === id ? { ...t, isCompleted: false } : t));
         throw new Error('Failed to mark task as complete');
       }
     } catch (error) {

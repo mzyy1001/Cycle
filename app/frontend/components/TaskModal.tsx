@@ -30,7 +30,7 @@ const getInitialFormData = (task: Task | null) => {
       mood: task.mood,
       timestampDate: new Date(task.timestamp),
       length: String(task.length),
-      isLocked: task.isLocked ?? false,
+      isLocked: task.isLocked,
     };
   }
   return {
