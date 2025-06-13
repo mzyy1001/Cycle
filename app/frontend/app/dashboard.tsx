@@ -157,11 +157,6 @@ export default function DashboardScreen() {
     }
   };
 
-  const handleLogout = async () => {
-    await AsyncStorage.removeItem('authToken');
-    router.replace('/reg_login');
-  };
-
   useEffect(() => {
     const checkAuthAndFetch = async () => {
       const token = await getAuthToken();
@@ -313,10 +308,6 @@ export default function DashboardScreen() {
           <Text style={styles.emptyText}>No future tasks scheduled.</Text>
         )}
       </ScrollView>
-
-      <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
-        <Text style={styles.logoutButtonText}>Logout</Text>
-      </TouchableOpacity>
     </>
   );
 }
@@ -370,6 +361,4 @@ const styles = StyleSheet.create({
     fontWeight: 'bold' 
   },
   emptyText: { fontStyle: 'italic', color: 'gray', marginTop: 10, textAlign: 'center' },
-  logoutButton: { padding: 15, alignItems: 'center', backgroundColor: '#f3f4f6', borderTopWidth: 1, borderColor: '#e5e7eb' },
-  logoutButtonText: { color: '#ef4444', fontWeight: 'bold' },
 });
