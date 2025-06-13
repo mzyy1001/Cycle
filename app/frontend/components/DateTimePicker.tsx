@@ -214,7 +214,7 @@ const DateTimePicker = ({ visible, onClose, onConfirm, currentDate }: {
 };
 
 const styles = StyleSheet.create({
-  modalOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)' },
+  modalOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)' , zIndex: 1000,elevation: 10},
   modalContent: { backgroundColor: 'white', padding: 15, borderRadius: 15, width: '90%', maxWidth: 350, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84, elevation: 5 },
   modeSelector: { flexDirection: 'row', justifyContent: 'center', backgroundColor: '#f3f4f6', borderRadius: 8, marginBottom: 15 },
   modeButton: { flex: 1, padding: 10, alignItems: 'center' },

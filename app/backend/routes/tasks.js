@@ -195,7 +195,7 @@ router.patch('/:id', (req, res) => {
   db.prepare(`
     UPDATE tasks SET mood = ?, task = ?, timestamp = ?, length = ?, isLocked = ?
     WHERE id = ?
-  `).run(mood, taskName, timestamp, length, id, isLocked);
+  `).run(mood.toString(), taskName, timestamp, length, id, isLocked);
 
   res.json({ message: 'Task updated', task: { id, mood, task: taskName, timestamp, length, isLocked} });
 });
