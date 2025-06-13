@@ -44,10 +44,15 @@ const getInitialFormData = (task: Task | null) => {
 
 const TaskModal = ({ visible, onClose, onSubmit, editingTask }: TaskModalProps) => {
   const [formData, setFormData] = useState(getInitialFormData(editingTask));
+  const [viewMode, setViewMode] = useState<'form' | 'picker'>('form');
   const [isPickerVisible, setPickerVisible] = useState(false); // <-- State for our new picker
 
   useEffect(() => {
-    setFormData(getInitialFormData(editingTask));
+    if (visible) {
+      setFormData(getInitialFormData(editingTask));
+      // Reset to form view whenever the modal becomes visible
+      setViewMode('form');
+    }
   }, [editingTask, visible]);
 
   const handleInputChange = (field: string, value: any) => {
@@ -79,90 +84,48 @@ const TaskModal = ({ visible, onClose, onSubmit, editingTask }: TaskModalProps) 
     });
   };
 
-  return (
+  const renderForm = () => (
     <>
-      <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>{editingTask ? 'Edit Task' : 'Add New Task'}</Text>
-            
-            <TextInput
-              placeholder="e.g., Biology Project Research"
-              value={formData.task}
-              onChangeText={val => handleInputChange('task', val)}
-              style={styles.input}
-            />
-
-            <Text style={styles.label}>Best Suited Mood(s)</Text>
-            <View style={styles.moodsContainer}>
-              {moodOptions.map(({ mood, color, icon }) => (
-                <TouchableOpacity
-                  key={mood}
-                  onPress={() => handleMoodToggle(mood)}
-                  style={[
-                    styles.moodOption,
-                    { backgroundColor: color },
-                    formData.mood.includes(mood) && styles.selectedMood,
-                  ]}
-                >
-                  <Text>{icon} {mood}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* --- New Date & Time Display --- */}
-            <Text style={styles.label}>Date & Time</Text>
-            <TouchableOpacity onPress={() => setPickerVisible(true)} style={styles.dateTimePickerButton}>
-              <Text style={styles.dateTimePickerText}>
-                {formData.timestampDate.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
-              </Text>
-              <Text style={styles.dateTimePickerText}>
-                {formData.timestampDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </Text>
-            </TouchableOpacity>
-            {/* --- End New Date & Time Display --- */}
-
-            <Text style={styles.label}>Length (minutes)</Text>
-            <TextInput
-              value={formData.length}
-              onChangeText={val => handleInputChange('length', val)}
-              keyboardType="numeric"
-              style={styles.input}
-            />
-
-            <View style={styles.lockContainer}>
-              <TouchableOpacity
-                onPress={() => handleInputChange('isLocked', !formData.isLocked)}
-                style={[styles.lockButton, { backgroundColor: formData.isLocked ? '#f87171' : '#d1d5db' }]}
-              >
-                <Text style={styles.lockButtonText}>{formData.isLocked ? '🔒 Locked' : '🔓 Unlocked'}</Text>
-              </TouchableOpacity>
-              <Text style={styles.lockDescription}>
-                {formData.isLocked ? 'Task will NOT be rescheduled' : 'Task is flexible for reschedule'}
-              </Text>
-            </View>
-
-            <View style={styles.buttonContainer}>
-              <Button title={editingTask ? 'Save Changes' : 'Add Task'} onPress={handleSubmit} />
-              <View style={{ marginTop: 8 }}>
-                <Button title="Cancel" onPress={onClose} color="gray" />
-              </View>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* --- Render the DateTimePicker --- */}
-      <DateTimePicker
-        visible={isPickerVisible}
-        onClose={() => setPickerVisible(false)}
-        currentDate={formData.timestampDate}
-        onConfirm={(newDate) => {
-          handleInputChange('timestampDate', newDate);
-          setPickerVisible(false);
-        }}
-      />
+      <Text style={styles.modalTitle}>{editingTask ? 'Edit Task' : 'Add New Task'}</Text>
+      <TextInput placeholder="e.g., Biology Project Research" value={formData.task} onChangeText={val => handleInputChange('task', val)} style={styles.input} />
+      <Text style={styles.label}>Best Suited Mood(s)</Text>
+      <View style={styles.moodsContainer}>{moodOptions.map(({ mood, color, icon }) => (<TouchableOpacity key={mood} onPress={() => handleMoodToggle(mood)} style={[styles.moodOption, { backgroundColor: color }, formData.mood.includes(mood) && styles.selectedMood,]}><Text>{icon} {mood}</Text></TouchableOpacity>))}
+      </View>
+      <Text style={styles.label}>Date & Time</Text>
+      <TouchableOpacity onPress={() => setViewMode('picker')} style={styles.dateTimePickerButton}>
+        <Text style={styles.dateTimePickerText}>{formData.timestampDate.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</Text>
+        <Text style={styles.dateTimePickerText}>{formData.timestampDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
+      </TouchableOpacity>
+      <Text style={styles.label}>Length (minutes)</Text>
+      <TextInput value={formData.length} onChangeText={val => handleInputChange('length', val)} keyboardType="numeric" style={styles.input} />
+      <View style={styles.lockContainer}><TouchableOpacity onPress={() => handleInputChange('isLocked', !formData.isLocked)} style={[styles.lockButton, { backgroundColor: formData.isLocked ? '#f87171' : '#d1d5db' }]}><Text style={styles.lockButtonText}>{formData.isLocked ? '🔒 Locked' : '🔓 Unlocked'}</Text></TouchableOpacity><Text style={styles.lockDescription}>{formData.isLocked ? 'Task will NOT be rescheduled' : 'Task is flexible for reschedule'}</Text></View>
+      <View style={styles.buttonContainer}><Button title={editingTask ? 'Save Changes' : 'Add Task'} onPress={handleSubmit} /><View style={{ marginTop: 8 }}><Button title="Cancel" onPress={onClose} color="gray" /></View></View>
     </>
+  );
+
+  const renderPicker = () => (
+    <DateTimePicker
+      // --- CHANGE 3: Use a key to force re-mount and state reset ---
+      key={formData.timestampDate.toISOString()}
+      currentDate={formData.timestampDate}
+      onConfirm={(newDate) => {
+        handleInputChange('timestampDate', newDate);
+        setViewMode('form'); // Go back to the form view
+      }}
+      onCancel={() => {
+        setViewMode('form'); // Go back to the form view
+      }}
+    />
+  );
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          {viewMode === 'form' ? renderForm() : renderPicker()}
+        </View>
+      </View>
+    </Modal>
   );
 };
 

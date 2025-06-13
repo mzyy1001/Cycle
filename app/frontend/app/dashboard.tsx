@@ -1,7 +1,8 @@
 // app/dashboard.tsx
 
 import React, { useEffect, useState, useMemo } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, Button } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, Button } from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 
@@ -209,7 +210,6 @@ export default function DashboardScreen() {
       <TaskModal
         visible={modalVisible}
         onClose={() => setModalVisible(false)}
-        // --- MODIFIED: onSubmit now handles both add and edit ---
         onSubmit={(taskData) => {
           if (editingTask) {
             handleUpdateTask(editingTask.id, taskData);
