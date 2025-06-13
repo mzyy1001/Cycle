@@ -7,6 +7,7 @@ import { router } from 'expo-router';
 
 import TaskItem from '../components/TaskItem';
 import TaskModal from '../components/TaskModal';
+import TimelineSchedulerModal from '../components/TimelineSchedulerModal';
 import { Task } from '../lib/types';
 import { moodOptions } from '../lib/constants';
 
@@ -20,6 +21,7 @@ export default function DashboardScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [isSchedulerVisible, setSchedulerVisible] = useState(false);
 
   // --- API Functions ---
   const getAuthToken = () => AsyncStorage.getItem('authToken');
@@ -36,7 +38,6 @@ export default function DashboardScreen() {
       setTasks(data.tasks || []);
     } catch (error) {
       console.error('Fetching tasks failed:', error);
-      // alert(error.message);
     } finally {
       setIsLoading(false);
     }
@@ -59,23 +60,49 @@ export default function DashboardScreen() {
     }
   };
 
-  const handleUpdateTask = async (taskData: Omit<Task, 'id' | 'isCompleted'>) => {
-    if (!editingTask) return;
+  const handleUpdateTask = async (taskId: number, taskData: Omit<Task, 'id' | 'isCompleted'>) => {
+    if (editingTask?.id === taskId) {
+      setModalVisible(false);
+      setEditingTask(null);
+    }
+    // Optimistic update
+    const originalTask = tasks.find(t => t.id === taskId);
+    const optimisticTask = { ...originalTask!, ...taskData, id: taskId };
+    setTasks(prev => prev.map(t => (t.id === taskId ? optimisticTask : t)));
+
     try {
       const token = await getAuthToken();
-      const res = await fetch(`${API_BASE_URL}/api/tasks/${editingTask.id}`, {
+      const res = await fetch(`${API_BASE_URL}/api/tasks/${taskId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(taskData),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to update task');
-      setTasks(prev => prev.map(t => (t.id === editingTask.id ? data.task : t)));
-      setModalVisible(false);
-      setEditingTask(null);
+      setTasks(prev => prev.map(t => (t.id === taskId ? data.task : t)));
     } catch (error) {
       console.error('Update failed:', error);
+      if (originalTask) setTasks(prev => prev.map(t => (t.id === taskId ? originalTask : t)));
     }
+  };
+
+  const handleBatchUpdateTasks = (updatedTasks: Task[]) => {
+    // 1. Optimistically update the UI for a snappy feel
+    const updatedIds = new Set(updatedTasks.map(t => t.id));
+    const unchangedTasks = tasks.filter(t => !updatedIds.has(t.id));
+    setTasks([...unchangedTasks, ...updatedTasks]);
+
+    // 2. Find which tasks actually changed and send updates to the API
+    updatedTasks.forEach(updatedTask => {
+      const originalTask = filteredTasks.find(t => t.id === updatedTask.id);
+      // If the timestamp is different, call the update function
+      if (originalTask && originalTask.timestamp !== updatedTask.timestamp) {
+        const { id, isCompleted, ...taskData } = updatedTask; // Extract data for the API
+        handleUpdateTask(id, taskData);
+      }
+    });
+
+    setSchedulerVisible(false);
   };
 
   const handleDeleteTask = async (id: number) => {
@@ -93,7 +120,6 @@ export default function DashboardScreen() {
   };
   
   const handleCompleteTask = async (id: number) => {
-    // Optimistic update
     setTasks(prev => prev.map(t => t.id === id ? { ...t, isCompleted: 1 } : t));
     try {
       const token = await getAuthToken();
@@ -101,7 +127,7 @@ export default function DashboardScreen() {
         method: 'PATCH',
         headers: { 'Authorization': `Bearer ${token}` },
       });
-      if (!res.ok) { // Revert on failure
+      if (!res.ok) {
         setTasks(prev => prev.map(t => t.id === id ? { ...t, isCompleted: 0 } : t));
         throw new Error('Failed to mark task as complete');
       }
@@ -123,7 +149,7 @@ export default function DashboardScreen() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Reschedule failed');
       alert('Tasks rescheduled!');
-      await fetchTasks(); // Refetch all tasks to see changes
+      await fetchTasks();
     } catch (error) {
       console.error('Reschedule error:', error);
     } finally {
@@ -136,7 +162,6 @@ export default function DashboardScreen() {
     router.replace('/reg_login');
   };
 
-  // --- Effects ---
   useEffect(() => {
     const checkAuthAndFetch = async () => {
       const token = await getAuthToken();
@@ -149,7 +174,6 @@ export default function DashboardScreen() {
     checkAuthAndFetch();
   }, []);
 
-  // --- Memoized Calculations ---
   const { filteredTasks, futureTasks } = useMemo(() => {
     const todayStr = new Date().toISOString().slice(0, 10);
     const sortedTasks = [...tasks].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
@@ -171,7 +195,6 @@ export default function DashboardScreen() {
     return days;
   }, []);
 
-  // --- Modal Handlers ---
   const openAddModal = () => {
     setEditingTask(null);
     setModalVisible(true);
@@ -182,7 +205,6 @@ export default function DashboardScreen() {
     setModalVisible(true);
   };
 
-  // --- Render ---
   if (isLoading) {
     return <View style={styles.centered}><ActivityIndicator size="large" color="#4f46e5" /></View>;
   }
@@ -192,8 +214,23 @@ export default function DashboardScreen() {
       <TaskModal
         visible={modalVisible}
         onClose={() => setModalVisible(false)}
-        onSubmit={editingTask ? handleUpdateTask : handleAddTask}
+        // --- MODIFIED: onSubmit now handles both add and edit ---
+        onSubmit={(taskData) => {
+          if (editingTask) {
+            handleUpdateTask(editingTask.id, taskData);
+          } else {
+            handleAddTask(taskData);
+          }
+        }}
         editingTask={editingTask}
+      />
+
+      <TimelineSchedulerModal
+        visible={isSchedulerVisible}
+        onClose={() => setSchedulerVisible(false)}
+        onSave={handleBatchUpdateTasks}
+        tasks={filteredTasks}
+        day={selectedDate}
       />
 
       <ScrollView contentContainerStyle={styles.container}>
@@ -210,11 +247,7 @@ export default function DashboardScreen() {
             <TouchableOpacity
               key={mood}
               onPress={() => setSelectedMood(m => m === mood ? null : mood)}
-              style={[
-                styles.moodButton,
-                { backgroundColor: color },
-                selectedMood === mood && styles.selectedMoodButton,
-              ]}
+              style={[ styles.moodButton, { backgroundColor: color }, selectedMood === mood && styles.selectedMoodButton, ]}
             >
               <Text>{icon}</Text>
               <Text>{mood}</Text>
@@ -245,13 +278,27 @@ export default function DashboardScreen() {
 
         <View style={styles.tasksHeader}>
           <Text style={styles.sectionTitle}>Today's Tasks</Text>
-          <TouchableOpacity
-            onPress={handleReschedule}
-            disabled={isRescheduling}
-            style={[styles.rescheduleButton, isRescheduling && styles.disabledButton]}
-          >
-            {isRescheduling ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.rescheduleButtonText}>Reschedule</Text>}
-          </TouchableOpacity>
+          <View style={styles.tasksHeaderActions}>
+            {/* --- NEW: Manual Schedule Button --- */}
+            <TouchableOpacity
+              onPress={() => setSchedulerVisible(true)}
+              disabled={filteredTasks.length === 0}
+              style={[
+                styles.rescheduleButton,
+                styles.manualScheduleButton,
+                filteredTasks.length === 0 && styles.disabledButton,
+              ]}
+            >
+              <Text style={styles.rescheduleButtonText}>Manual</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleReschedule}
+              disabled={isRescheduling}
+              style={[styles.rescheduleButton, isRescheduling && styles.disabledButton]}
+            >
+              {isRescheduling ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.rescheduleButtonText}>AI Reschedule</Text>}
+            </TouchableOpacity>
+          </View>
         </View>
         {filteredTasks.length > 0 ? (
           filteredTasks.map(task => <TaskItem key={task.id} item={task} onEdit={openEditModal} onDelete={handleDeleteTask} onComplete={handleCompleteTask} />)
@@ -274,7 +321,7 @@ export default function DashboardScreen() {
   );
 }
 
-// --- Styles for DashboardScreen ---
+// --- Styles for DashboardScreen (with additions) ---
 const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   container: { padding: 20, paddingBottom: 80 },
@@ -294,10 +341,34 @@ const styles = StyleSheet.create({
   selectedDateButton: { backgroundColor: '#4f46e5' },
   dateButtonText: { color: 'black', fontWeight: 'bold' },
   selectedDateButtonText: { color: 'white' },
-  tasksHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 },
-  rescheduleButton: { backgroundColor: '#4f46e5', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, flexDirection: 'row', alignItems: 'center' },
-  disabledButton: { backgroundColor: '#a5b4fc' },
-  rescheduleButtonText: { color: 'white', fontWeight: 'bold' },
+  tasksHeader: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    marginTop: 10 
+  },
+  tasksHeaderActions: {
+    flexDirection: 'row',
+    gap: 8, // Adds space between the buttons
+  },
+  rescheduleButton: { 
+    backgroundColor: '#4f46e5', 
+    paddingHorizontal: 12, 
+    paddingVertical: 8, 
+    borderRadius: 8, 
+    flexDirection: 'row', 
+    alignItems: 'center' 
+  },
+  manualScheduleButton: {
+    backgroundColor: '#10b981', // A different color to distinguish it
+  },
+  disabledButton: { 
+    backgroundColor: '#a5b4fc' 
+  },
+  rescheduleButtonText: { 
+    color: 'white', 
+    fontWeight: 'bold' 
+  },
   emptyText: { fontStyle: 'italic', color: 'gray', marginTop: 10, textAlign: 'center' },
   logoutButton: { padding: 15, alignItems: 'center', backgroundColor: '#f3f4f6', borderTopWidth: 1, borderColor: '#e5e7eb' },
   logoutButtonText: { color: '#ef4444', fontWeight: 'bold' },
