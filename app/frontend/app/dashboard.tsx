@@ -2,9 +2,15 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, Button } from 'react-native';
+import { Animated, LayoutAnimation, UIManager, Platform } from 'react-native';
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
 import { ScrollView } from 'react-native-gesture-handler';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
+
 
 import TaskItem from '../components/TaskItem';
 import TaskModal from '../components/TaskModal';
@@ -23,6 +29,8 @@ export default function DashboardScreen() {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [isSchedulerVisible, setSchedulerVisible] = useState(false);
+  const [isAnimatingShuffle, setIsAnimatingShuffle] = useState(false);
+  
 
   // --- API Functions ---
   const getAuthToken = () => AsyncStorage.getItem('authToken');
@@ -166,9 +174,49 @@ export default function DashboardScreen() {
     }
   };
 
+  const animateTaskShuffle = (): Promise<void> => {
+    return new Promise((resolve) => {
+      const iterations = 30; 
+      const delayBeforeStart = 5000; // 5s delay before starting
+      const intervalDuration = 30; 
+
+      setTimeout(() => {
+        let remaining = iterations;
+        const interval = setInterval(() => {
+          LayoutAnimation.configureNext({
+            duration: intervalDuration,
+            update: {
+              type: LayoutAnimation.Types.easeInEaseOut,
+              property: LayoutAnimation.Properties.scaleXY,
+            },
+          });
+
+          setTasks((prev) => {
+            const shuffled = [...prev];
+            for (let i = shuffled.length - 1; i > 0; i--) {
+              const j = Math.floor(Math.random() * (i + 1));
+              [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            }
+            return shuffled;
+          });
+
+          remaining--;
+          if (remaining <= 0) {
+            clearInterval(interval);
+            resolve();
+          }
+        }, intervalDuration);
+      }, delayBeforeStart);
+    });
+  };
+
+
   const handleReschedule = async () => {
     if (!selectedMood) return alert("Please select your current mood to reschedule.");
     setIsRescheduling(true);
+    setIsAnimatingShuffle(true);
+    const shufflePromise = animateTaskShuffle();
+
     try {
       const token = await getAuthToken();
       const res = await fetch(`${API_BASE_URL}/api/tasks/reschedule`, {
@@ -178,14 +226,17 @@ export default function DashboardScreen() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Reschedule failed');
-      alert('Tasks rescheduled!');
-      await fetchTasks();
     } catch (error) {
       console.error('Reschedule error:', error);
     } finally {
+      await shufflePromise;
+      await fetchTasks();
+      alert('Tasks rescheduled!');
       setIsRescheduling(false);
+      setIsAnimatingShuffle(false);
     }
   };
+
 
   useEffect(() => {
     const checkAuthAndFetch = async () => {
