@@ -20,6 +20,7 @@ app.use((req, res, next) => {
 
 app.use('/api', require('./routes/users'));
 app.use('/api/tasks', require('./routes/tasks'));
+app.use('/api/rank', require('./routes/rank'));
 
 app.get('/api/test', (req, res) => {
   res.json({ msg: 'Backend is working' });

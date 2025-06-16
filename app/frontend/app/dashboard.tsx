@@ -44,6 +44,35 @@ export default function DashboardScreen() {
     }
   };
 
+  const handleCheckin = async () => {
+    try {
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const lastCheckin = await AsyncStorage.getItem('lastCheckinDate');
+
+      if (lastCheckin === todayStr) {
+        return; 
+      }
+
+      const token = await getAuthToken();
+      const res = await fetch(`${API_BASE_URL}/api/rank/checkin`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Check-in failed');
+
+      await AsyncStorage.setItem('lastCheckinDate', todayStr);
+
+      console.log('✅ Check-in successful. Streak:', data.streak);
+      alert(`You have already checked ${data.streak} days!`);
+
+    } catch (error) {
+      console.error('❌ Check-in error:', error);
+    }
+  };
+
+
+
   const handleAddTask = async (taskData: Omit<Task, 'id' | 'isCompleted'>) => {
     try {
       const token = await getAuthToken();
@@ -201,6 +230,16 @@ export default function DashboardScreen() {
     setModalVisible(true);
   };
 
+  const handleSelectMood = async (mood: string) => {
+    setSelectedMood(prev => {
+      const newMood = prev === mood ? null : mood;
+      if (newMood) {
+        handleCheckin();
+      }
+      return newMood;
+    });
+  };
+
   if (isLoading) {
     return <View style={styles.centered}><ActivityIndicator size="large" color="#4f46e5" /></View>;
   }
@@ -241,7 +280,7 @@ export default function DashboardScreen() {
           {moodOptions.map(({ mood, color, icon }) => (
             <TouchableOpacity
               key={mood}
-              onPress={() => setSelectedMood(m => m === mood ? null : mood)}
+              onPress={() => handleSelectMood(mood)}
               style={[ styles.moodButton, { backgroundColor: color }, selectedMood === mood && styles.selectedMoodButton, ]}
             >
               <Text>{icon}</Text>

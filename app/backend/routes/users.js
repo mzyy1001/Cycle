@@ -19,7 +19,7 @@ router.post('/register', async (req, res) => {
 
     const stmt = db.prepare(`INSERT INTO users (username, password) VALUES (?, ?)`);
     const info = stmt.run(username, hashedPassword);
-
+    console.log("register finished");
     res.status(201).json({ message: 'User registered' });
 
   } catch (err) {

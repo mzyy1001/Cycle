@@ -2,6 +2,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Image, ScrollView, Modal } fr
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL;
 
 export default function Index() {
   const router = useRouter();
@@ -47,6 +48,52 @@ export default function Index() {
     setIsLoggedIn(false);
   };
 
+  const [streakInfo, setStreakInfo] = useState('You have stayed consistent for 3 days — that’s better than 87% of users!');
+  useEffect(() => {
+    const fetchStreakAndPercentile = async () => {
+      const token = await AsyncStorage.getItem('authToken');
+      if (!token || !API_BASE_URL) return;
+
+      try {
+        const streakRes = await fetch(`${API_BASE_URL}/api/rank/streak`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        const streakData = await streakRes.json();
+
+        const rankRes = await fetch(`${API_BASE_URL}/api/rank`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        const rankData = await rankRes.json();
+
+        const allUsers = rankData.rank;
+        const me = allUsers.find((u: any) => u.isMe);
+        const total = allUsers.length;
+
+        if (me) {
+          const myRank = me.rank;
+          const percentile = Math.floor(((total - myRank) / total) * 100);
+
+          setStreakInfo(
+            `You have stayed consistent for ${me.streak} day${me.streak > 1 ? 's' : ''} — that’s better than ${percentile}% of users!`
+          );
+        } else {
+          setStreakInfo(`You have stayed consistent for ${streakData.streak ?? 0} day(s).`);
+        }
+      } catch (err) {
+        console.error('Failed to load streak info:', err);
+      }
+    };
+
+    fetchStreakAndPercentile();
+  }, []);
+
+
+  //console.log("streakinfo: ",streakInfo);
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Image
@@ -55,6 +102,7 @@ export default function Index() {
         resizeMode="contain"
       />
       <Text style={styles.title}>Welcome to Cycle</Text>
+      
       <Text style={styles.subtitle}>Mood Management</Text>
     { isChecking ? null : (
         !isLoggedIn ? (
@@ -68,6 +116,12 @@ export default function Index() {
           </>
         ) : (
           <>
+            <View style={styles.streakRow}>
+              <Text style={styles.streakText}>{streakInfo}</Text>
+              <TouchableOpacity onPress={() => router.push('/rank')}>
+                <Text style={styles.rankLink}>View rank</Text>
+              </TouchableOpacity>
+            </View>
             <TouchableOpacity
               style={styles.buttonPrimary}
               onPress={() => router.push('/dashboard')}
@@ -186,4 +240,28 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 16,
   },
+  streakRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    marginBottom: 10,
+  },
+
+  rankLink: {
+    fontSize: 14,
+    color: '#2563eb', // blue-600
+    marginLeft: 8,
+    textDecorationLine: 'underline',
+    fontWeight: '500',
+  },
+
+  streakText: {
+    fontSize: 14,
+    color: '#10b981', // green-500
+    marginBottom: 10,
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+
 });

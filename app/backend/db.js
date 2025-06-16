@@ -19,7 +19,11 @@ const usersDB = new Database('users.db');
 usersDB.exec(`CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   username TEXT UNIQUE,
-  password TEXT
+  password TEXT,
+  lastCheckinDate TEXT,
+  streakCount INTEGER DEFAULT 0
 )`);
+
+
 
 module.exports = { tasks: tasksDB, users: usersDB };
