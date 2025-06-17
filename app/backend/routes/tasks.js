@@ -68,11 +68,7 @@ router.get('/', (req, res) => {
   const total = db.prepare(`SELECT COUNT(*) AS count FROM (${query})`).get(...params).count;
   const tasks = db.prepare(`${query} ORDER BY timestamp ASC LIMIT ? OFFSET ?`).all(...params, pageSize, offset);
   for (const task of tasks) {
-    try {
-      task.mood = JSON.parse(task.mood);
-    } catch {
-      task.mood = [];
-    }
+    task.mood = JSON.parse(task.mood);
   }
   res.json({
     tasks,
@@ -195,7 +191,7 @@ router.patch('/:id', (req, res) => {
   db.prepare(`
     UPDATE tasks SET mood = ?, task = ?, timestamp = ?, length = ?, isLocked = ?
     WHERE id = ?
-  `).run(mood.toString(), taskName, timestamp, length, isLocked ? 1 : 0, id);
+  `).run(JSON.stringify(mood), taskName, timestamp, length, isLocked ? 1 : 0, id);
 
   res.json({ message: 'Task updated', task: { id, mood, task: taskName, timestamp, length, isLocked} });
 });
