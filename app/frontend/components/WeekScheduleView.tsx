@@ -37,12 +37,16 @@ const WeekScheduleView: React.FC<Props> = ({ tasks, moodOptions }) => {
   const dayList: { date: string; label: string }[] = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(today);
     d.setDate(today.getDate() + i);
+    const d2 = new Date(today);
+    d2.setDate(today.getDate() + i - 1);
     return {
       date: d.toISOString().slice(0, 10),
-      label: d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+      label: d2.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
     };
   });
 
+
+  
   // Group tasks by day string (e.g., "2025-06-13")
   const tasksByDate: { [key: string]: Task[] } = {};
   for (const task of tasks) {
