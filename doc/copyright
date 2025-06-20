@@ -1,0 +1,34 @@
+# 📄 Copyright / Legal Issues Report
+
+This document acknowledges all third-party libraries, code, and image assets used in the Cycle project (https://github.com/mzyy1001/Cycle), and briefly discusses legal issues relevant to a potential public or commercial release.
+
+---
+
+## ✅ Third-Party Resources and Licenses
+
+| Resource Name     | Type         | Source Link                                              | License Type                         | Usage Description                    |
+|------------------|--------------|----------------------------------------------------------|--------------------------------------|--------------------------------------|
+| Expo (React Native) | Frontend Framework | https://expo.dev                                         | MIT License                          | Mobile app development               |
+| React Native     | UI Framework | https://reactnative.dev                                  | MIT License                          | UI and components                    |
+| Express.js       | Backend Framework | https://expressjs.com                                  | MIT License                          | REST API server                      |
+| SQLite           | Database     | https://www.sqlite.org                                   | Public Domain                        | Task & user data storage             |
+| OpenAI API       | AI Service   | https://openai.com/policies/terms-of-use                 | OpenAI Terms of Use (Proprietary)    | AI-powered task rescheduling         |
+| Python           | Programming Language | https://www.python.org                                 | Python Software Foundation License   | Backend scripting and integration    |
+| GPT-generated Images | Image Assets | Generated using OpenAI API                              | Subject to OpenAI Content Policy     | Visuals within UI                    |
+
+---
+
+## 🧾 Legal Considerations
+
+The Cycle project uses a mix of open-source and proprietary technologies. All third-party libraries (React Native, Express, SQLite, etc.) are governed by open licenses like MIT or Public Domain, and have been listed with links to their sources and licenses.
+
+We also use OpenAI’s GPT API for generating dynamic task rescheduling and visual content. According to OpenAI’s terms, content generated via API belongs to the user, provided it complies with the [Usage Policies](https://openai.com/policies/usage-policies). If the project is to be publicly deployed or monetized, further steps must be taken to ensure:
+
+- Compliance with OpenAI's commercial use terms and API quotas;
+- Attribution and rights management of GPT-generated media if required;
+- User data protection in line with regulations such as GDPR or UK Data Protection Act;
+- Ensuring that any AI decisions affecting users are explainable and non-discriminatory.
+
+These points should be carefully reviewed by a future development or legal team before public launch.
+
+_Last updated: June 2025_
